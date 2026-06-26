@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor OMNI</title>
+    <link rel="stylesheet" href="/styles/glassmorphism.css">
+</head>
+<body>
+    <script type="module">
+        import init, { hydrate } from '/pkg/monitor.js';
+        init().then(hydrate).catch(e => console.error('Failed to initialize:', e));
+    </script>
+</body>
+</html>
