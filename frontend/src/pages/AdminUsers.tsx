@@ -10,6 +10,7 @@ import * as usersApi from '../api/users'
 import { Spinner } from '../components/ui/Spinner'
 import { Modal } from '../components/ui/Modal'
 import { Badge } from '../components/ui/Badge'
+import { Select } from '../components/ui/Select'
 
 const helper = createColumnHelper<UserResponse>()
 
@@ -210,12 +211,16 @@ export function AdminUsers() {
           </div>
           <div>
             <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Rol</label>
-            <select value={formRole} onChange={e => setFormRole(e.target.value)}
-              className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none">
-              <option value="admin">Admin</option>
-              <option value="operator">Operator</option>
-              <option value="viewer">Viewer</option>
-            </select>
+            <Select
+              options={[
+                { value: 'admin', label: 'Admin' },
+                { value: 'operator', label: 'Operator' },
+                { value: 'viewer', label: 'Viewer' }
+              ]}
+              value={formRole}
+              onChange={setFormRole}
+              placeholder="Seleccionar rol…"
+            />
           </div>
           <div className="flex justify-end gap-2 mt-2">
             <button onClick={() => setModalOpen(false)}

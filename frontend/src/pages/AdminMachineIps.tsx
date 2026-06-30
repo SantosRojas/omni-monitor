@@ -7,9 +7,7 @@ import {
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { MachineIpWithSerial, Machine } from '../types'
 import * as machinesApi from '../api/machines'
-import { Spinner } from '../components/ui/Spinner'
-import { Modal } from '../components/ui/Modal'
-import { Badge } from '../components/ui/Badge'
+import { Spinner, Modal, Badge, Select } from '../components/ui'
 
 const helper = createColumnHelper<MachineIpWithSerial>()
 
@@ -169,10 +167,12 @@ export function AdminMachineIps() {
           {!editing && (
             <div>
               <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Máquina</label>
-              <select value={formMachineId} onChange={e => setFormMachineId(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none">
-                {machines.map(m => <option key={m.id} value={m.id}>{m.serial_number}</option>)}
-              </select>
+              <Select
+                options={machines.map(m => ({ value: m.id, label: m.serial_number }))}
+                value={formMachineId}
+                onChange={setFormMachineId}
+                placeholder="Seleccionar máquina…"
+              />
             </div>
           )}
           <div>
