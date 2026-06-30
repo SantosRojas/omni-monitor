@@ -46,6 +46,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle('dark', theme === 'dark')
     document.documentElement.style.setProperty('--accent', accent)
     document.documentElement.style.setProperty('--accent-hover', accent + 'cc')
+
+    const isDark = theme === 'dark'
+    const g = isDark
+      ? `linear-gradient(135deg, #0c0e1a 0%, #1a1a3e 30%, ${accent}70 70%, #0c0e1a 100%)`
+      : `linear-gradient(135deg, #e8eef5 0%, #dce4f0 30%, ${accent}60 70%, #e8eef5 100%)`
+    document.documentElement.style.setProperty('--bg-gradient', g)
   }, [theme, accent])
 
   return (
