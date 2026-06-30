@@ -14,7 +14,6 @@ path = "src/main.rs"
 [features]
 default = ["ssr"]
 ssr = ["dep:axum", "dep:tokio", "dep:tower", "dep:tower-http", "dep:sqlx", "dep:sqlx-sqlserver", "dep:jsonwebtoken", "dep:argon2", "dep:rand_core", "dep:rust_xlsxwriter", "dep:dotenvy", "dep:tracing", "dep:tracing-subscriber"]
-frontend = ["dep:leptos", "dep:leptos_router", "dep:leptos_meta"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -36,13 +35,4 @@ dotenvy = { version = "0.15", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 
-leptos = { version = "0.7", optional = true, features = ["csr"] }
-leptos_router = { version = "0.7", optional = true }
-leptos_meta = { version = "0.7", optional = true }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
-serde-wasm-bindgen = "0.6"
-web-sys = { version = "0.3", features = ["Window", "Headers", "Request", "RequestInit", "Response", "Storage", "Location"] }
-getrandom = { version = "0.2", features = ["js"] }

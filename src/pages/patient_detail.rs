@@ -1,9 +1,11 @@
+use std::sync::Arc;
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 use leptos_router::components::A;
 use leptos::task::spawn_local;
 use crate::models::{Patient, TherapyWithMachine, ActiveDevice};
 use crate::utils::api;
+use crate::components::table::{DataTable, ColumnDef};
 use crate::components::loading_state::LoadingState;
 use crate::components::empty_state::EmptyState;
 
@@ -18,20 +20,23 @@ pub fn PatientDetail() -> impl IntoView {
     let active_device = RwSignal::new(Option::<ActiveDevice>::None);
     let loading = RwSignal::new(true);
 
-    spawn_local(async move {
+    Effect::new(move |_| {
         let pid = id();
-        if pid > 0 {
-            let (p, t, d) = futures::join!(
-                api::get_patient(pid),
-                api::get_patient_therapies(pid),
-                api::get_active_device(pid),
-            );
-            if let Err(e) = &p { global_error.set(Some(e.clone())); }
-            if let Ok(p) = p { patient.set(Some(p)); }
-            if let Ok(t) = t { therapies.set(Some(t)); }
-            if let Ok(d) = d { active_device.set(Some(d)); }
-        }
-        loading.set(false);
+        loading.set(true);
+        spawn_local(async move {
+            if pid > 0 {
+                let (p, t, d) = futures::join!(
+                    api::get_patient(pid),
+                    api::get_patient_therapies(pid),
+                    api::get_active_device(pid),
+                );
+                if let Err(e) = &p { global_error.set(Some(e.clone())); }
+                if let Ok(p) = p { patient.set(Some(p)); }
+                if let Ok(t) = t { therapies.set(Some(t)); }
+                if let Ok(d) = d { active_device.set(Some(d)); }
+            }
+            loading.set(false);
+        });
     });
 
     let redirect_to_device = move |url: String| {
@@ -98,39 +103,63 @@ pub fn PatientDetail() -> impl IntoView {
                         None => view! { <div class="loading"><div class="spinner"></div></div> }.into_any(),
                         Some(t) if t.is_empty() => view! { <EmptyState message="Sin terapias registradas" /> }.into_any(),
                         Some(therapies) => {
+                            let t_len = therapies.len() as i64;
+                            let columns = vec![
+                                ColumnDef { header: "ID", filterable: false, responsive_hide: Some("hide-sm") },
+                                ColumnDef { header: "Inicio", filterable: false, responsive_hide: None },
+                                ColumnDef { header: "Fin", filterable: false, responsive_hide: Some("hide-md") },
+                                ColumnDef { header: "Estado", filterable: false, responsive_hide: None },
+                                ColumnDef { header: "Máquina", filterable: false, responsive_hide: Some("hide-md") },
+                                ColumnDef { header: "", filterable: false, responsive_hide: None },
+                            ];
                             view! {
-                                <div class="table-container">
-                                    <table>
-                                        <thead>
+                                <DataTable
+                                    columns=columns
+                                    page=RwSignal::new(1)
+                                    total_pages=1
+                                    total=t_len
+                                    on_page_change=Arc::new(|_| {})
+                                    on_filter=None
+                                >
+                                    <tbody>
+                                        {therapies.into_iter().map(|t| {
+                                            let is_active = t.status.as_deref() == Some("active");
+                                            let t_id = t.id;
+                                            view! {
                                             <tr>
-                                                <th>ID</th>
-                                                <th>Inicio</th>
-                                                <th>Fin</th>
-                                                <th>Estado</th>
-                                                <th>Máquina</th>
-                                                <th></th>
+                                                <td class="hide-sm">{t.id}</td>
+                                                <td>{t.started_at.map(|t| t.format("%Y-%m-%d %H:%M").to_string())}</td>
+                                                <td class="hide-md">{t.ended_at.map(|t| t.format("%Y-%m-%d %H:%M").to_string())}</td>
+                                                <td>
+                                                    <span class={format!("badge badge-{}", if is_active { "active" } else { "inactive" })}>
+                                                        {t.status.clone().unwrap_or_default()}
+                                                    </span>
+                                                </td>
+                                                <td class="hide-md" style="font-size:0.8rem">{t.serial_number.unwrap_or_default()}</td>
+                                                <td>
+                                                    {move || {
+                                                        if is_active {
+                                                            if let Some(d) = active_device.get() {
+                                                                view! {
+                                                                    <a href=d.url target="_blank" class="btn btn-sm">"Ver"</a>
+                                                                }.into_any()
+                                                            } else {
+                                                                view! {
+                                                                    <A href={format!("/therapies/{}", t_id)} attr:class="btn btn-sm">"Ver"</A>
+                                                                }.into_any()
+                                                            }
+                                                        } else {
+                                                            view! {
+                                                                <A href={format!("/therapies/{}", t_id)} attr:class="btn btn-sm">"Ver"</A>
+                                                            }.into_any()
+                                                        }
+                                                    }}
+                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            {therapies.into_iter().map(|t| view! {
-                                                <tr>
-                                                    <td>{t.id}</td>
-                                                    <td>{t.started_at.map(|t| t.format("%Y-%m-%d %H:%M").to_string())}</td>
-                                                    <td>{t.ended_at.map(|t| t.format("%Y-%m-%d %H:%M").to_string())}</td>
-                                                    <td>
-                                                        <span class={format!("badge badge-{}", if t.status.as_deref() == Some("active") { "active" } else { "inactive" })}>
-                                                            {t.status.clone().unwrap_or_default()}
-                                                        </span>
-                                                    </td>
-                                                    <td style="font-size:0.8rem">{t.serial_number.unwrap_or_default()}</td>
-                                                    <td>
-                                                        <A href={format!("/therapies/{}", t.id)} attr:class="btn btn-sm">"Ver"</A>
-                                                    </td>
-                                                </tr>
-                                            }).collect::<Vec<_>>()}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </tbody>
+                                </DataTable>
                             }.into_any()
                         }
                     }}

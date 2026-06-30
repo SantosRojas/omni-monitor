@@ -3,7 +3,7 @@
 async fn main() {
     use std::net::SocketAddr;
     use std::sync::Arc;
-    use tower_http::cors::{CorsLayer, AllowOrigin};
+    use tower_http::cors::{AllowOrigin, CorsLayer};
     use tower_http::services::{ServeDir, ServeFile};
     use tower_http::trace::TraceLayer;
     use tracing_subscriber::EnvFilter;
@@ -16,11 +16,7 @@ async fn main() {
 
     let config = monitor::config::MonitorConfig::from_env();
 
-    tracing::info!(
-        "Starting monitor at {}:{}",
-        config.monitor_host,
-        config.monitor_port
-    );
+    tracing::info!("Starting monitor at http://{}:{}", config.monitor_host, config.monitor_port);
 
     let pool = match monitor::database::DbPool::from_config(&config).await {
         Ok(pool) => {
@@ -30,7 +26,10 @@ async fn main() {
             Arc::new(pool)
         }
         Err(e) => {
-            tracing::warn!("Failed to connect to database: {}. Running without database. Only static files will be served.", e);
+            tracing::warn!(
+                "Failed to connect to database: {}. Running without database. Only static files will be served.",
+                e
+            );
             Arc::new(monitor::database::DbPool::NoDb)
         }
     };
@@ -46,7 +45,9 @@ async fn main() {
     let cors = if config.cors_origins.iter().any(|o| o == "*") {
         CorsLayer::permissive()
     } else {
-        let origins: Vec<axum::http::HeaderValue> = config.cors_origins.iter()
+        let origins: Vec<axum::http::HeaderValue> = config
+            .cors_origins
+            .iter()
             .filter_map(|o| o.parse::<axum::http::HeaderValue>().ok())
             .collect();
         if origins.is_empty() {
@@ -61,30 +62,19 @@ async fn main() {
                     axum::http::Method::DELETE,
                     axum::http::Method::OPTIONS,
                 ])
-                .allow_headers([
-                    axum::http::header::CONTENT_TYPE,
-                    axum::http::header::AUTHORIZATION,
-                ])
+                .allow_headers([axum::http::header::CONTENT_TYPE, axum::http::header::AUTHORIZATION])
         }
     };
 
     let app = axum::Router::new()
         .nest("/api", api_router)
-        .fallback_service(
-            ServeDir::new("static")
-                .fallback(ServeFile::new("static/index.html"))
-        )
+        .fallback_service(ServeDir::new("static").fallback(ServeFile::new("static/index.html")))
         .layer(cors)
         .layer(TraceLayer::new_for_http());
 
-    let addr = SocketAddr::new(
-        config.monitor_host.parse().expect("Invalid host"),
-        config.monitor_port,
-    );
+    let addr = SocketAddr::new(config.monitor_host.parse().expect("Invalid host"), config.monitor_port);
 
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .expect("Failed to bind");
+    let listener = tokio::net::TcpListener::bind(addr).await.expect("Failed to bind");
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
@@ -95,9 +85,7 @@ async fn main() {
 #[cfg(feature = "ssr")]
 async fn shutdown_signal() {
     let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("Failed to install Ctrl+C handler");
+        tokio::signal::ctrl_c().await.expect("Failed to install Ctrl+C handler");
     };
 
     #[cfg(unix)]

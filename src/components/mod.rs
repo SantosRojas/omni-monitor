@@ -1,7 +1,6 @@
 pub mod login_form;
 pub mod layout;
 pub mod patient_card;
-pub mod patient_table;
 pub mod dashboard_chart;
 pub mod stats_card;
 pub mod machine_ip_form;
@@ -9,3 +8,4 @@ pub mod loading_state;
 pub mod empty_state;
 pub mod modal;
 pub mod error_banner;
+pub mod table;

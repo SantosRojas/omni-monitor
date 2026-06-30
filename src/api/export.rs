@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use axum::{
     extract::{Path, State},
     body::Body,
@@ -18,8 +20,9 @@ pub async fn export_patient(
     let patient = state.pool.find_patient_by_id(id).await?
         .ok_or(AppError::NotFound)?;
     let data = state.pool.export_patient_telemetry(id).await?;
+    let equivalences = state.pool.load_equivalences().await.unwrap_or_default();
     let filename = format!("patient_{}_history.xlsx", patient.patient_id_str);
-    let bytes = build_excel(&data).map_err(|e| AppError::Export(e))?;
+    let bytes = build_excel(&data, &equivalences).map_err(|e| AppError::Export(e))?;
     Ok(ExportResponse { bytes, filename })
 }
 
@@ -29,20 +32,26 @@ pub async fn export_therapy(
     Path(id): Path<i64>,
 ) -> Result<ExportResponse, AppError> {
     let data = state.pool.export_therapy_telemetry(id).await?;
+    let equivalences = state.pool.load_equivalences().await.unwrap_or_default();
     let filename = format!("therapy_{}_data.xlsx", id);
-    let bytes = build_excel(&data).map_err(|e| AppError::Export(e))?;
+    let bytes = build_excel(&data, &equivalences).map_err(|e| AppError::Export(e))?;
     Ok(ExportResponse { bytes, filename })
 }
 
-fn build_excel(data: &[TelemetryReading]) -> Result<Vec<u8>, String> {
+fn build_equiv_map(equivalences: &[AttributeEquivalence]) -> HashMap<(i64, i64), &str> {
+    equivalences.iter().map(|e| ((e.signal_id, e.numeric_value), e.display_name.as_str())).collect()
+}
+
+fn build_excel(data: &[TelemetryExportRow], equivalences: &[AttributeEquivalence]) -> Result<Vec<u8>, String> {
     let mut workbook = Workbook::new();
     let sheet = workbook.add_worksheet();
+    let eq_map = build_equiv_map(equivalences);
 
     sheet.write_string(0, 0, "ID").map_err(|e| e.to_string())?;
-    sheet.write_string(0, 1, "Timestamp").map_err(|e| e.to_string())?;
-    sheet.write_string(0, 2, "Signal ID").map_err(|e| e.to_string())?;
-    sheet.write_string(0, 3, "Value").map_err(|e| e.to_string())?;
-    sheet.write_string(0, 4, "Unit").map_err(|e| e.to_string())?;
+    sheet.write_string(0, 1, "Fecha/Hora").map_err(|e| e.to_string())?;
+    sheet.write_string(0, 2, "Señal").map_err(|e| e.to_string())?;
+    sheet.write_string(0, 3, "Valor").map_err(|e| e.to_string())?;
+    sheet.write_string(0, 4, "Unidad").map_err(|e| e.to_string())?;
 
     for (i, row) in data.iter().enumerate() {
         let r = (i + 1) as u32;
@@ -54,15 +63,19 @@ fn build_excel(data: &[TelemetryReading]) -> Result<Vec<u8>, String> {
                 .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
                 .unwrap_or_default(),
         ).map_err(|e| e.to_string())?;
-        if let Some(sig) = row.signal_id {
-            sheet.write_number(r, 2, sig as f64).map_err(|e| e.to_string())?;
+        if let Some(ref name) = row.signal_name {
+            sheet.write_string(r, 2, name).map_err(|e| e.to_string())?;
+        } else if let Some(sig) = row.signal_id {
+            sheet.write_string(r, 2, &sig.to_string()).map_err(|e| e.to_string())?;
         }
-        if let Some(ref val) = row.physical_value {
-            if let Ok(n) = val.parse::<f64>() {
-                let _ = sheet.write_number(r, 3, n);
-            } else {
-                let _ = sheet.write_string(r, 3, val);
-            }
+        let value_str = row.physical_value.as_deref().unwrap_or("");
+        let resolved = row.signal_id
+            .and_then(|sid| value_str.parse::<i64>().ok().and_then(|num| eq_map.get(&(sid, num)).copied()))
+            .unwrap_or(value_str);
+        if let Ok(n) = resolved.parse::<f64>() {
+            let _ = sheet.write_number(r, 3, n);
+        } else {
+            let _ = sheet.write_string(r, 3, resolved);
         }
         if let Some(ref unit) = row.unit {
             let _ = sheet.write_string(r, 4, unit);

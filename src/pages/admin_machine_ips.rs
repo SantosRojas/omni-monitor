@@ -3,6 +3,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use crate::models::MachineIpWithSerial;
 use crate::utils::api;
+use crate::components::table::{DataTable, ColumnDef};
 use crate::components::machine_ip_form::MachineIpForm;
 use crate::components::loading_state::LoadingState;
 use crate::components::empty_state::EmptyState;
@@ -47,6 +48,16 @@ pub fn AdminMachineIpsPage() -> impl IntoView {
         fetch();
     };
 
+    let columns = vec![
+        ColumnDef { header: "ID", filterable: false, responsive_hide: Some("hide-sm") },
+        ColumnDef { header: "Máquina", filterable: true, responsive_hide: None },
+        ColumnDef { header: "IP", filterable: true, responsive_hide: None },
+        ColumnDef { header: "Puerto", filterable: false, responsive_hide: Some("hide-md") },
+        ColumnDef { header: "Etiqueta", filterable: true, responsive_hide: Some("hide-md") },
+        ColumnDef { header: "Activo", filterable: false, responsive_hide: None },
+        ColumnDef { header: "", filterable: false, responsive_hide: None },
+    ];
+
     view! {
         <div class="page-title">IPs de Máquinas OMNI</div>
 
@@ -62,44 +73,39 @@ pub fn AdminMachineIpsPage() -> impl IntoView {
             if data.is_empty() {
                 return view! { <EmptyState message="No hay IPs registradas" /> }.into_any();
             }
+            let n = data.len() as i64;
             view! {
-                <div class="table-container glass" style="padding:0;overflow:hidden;">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Máquina</th>
-                                <th>IP</th>
-                                <th>Puerto</th>
-                                <th>Etiqueta</th>
-                                <th>Activo</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.into_iter().map(|item| {
-                                let item_clone = item.clone();
-                                view! {
-                                    <tr>
-                                        <td>{item.id}</td>
-                                        <td>{item.serial_number.clone().unwrap_or_default()}</td>
-                                        <td>{item.ip_address}</td>
-                                        <td>{item.port.map(|p| p.to_string()).unwrap_or_default()}</td>
-                                        <td>{item.label.clone().unwrap_or_default()}</td>
-                                        <td>
-                                            <span class={if item.is_active { "badge badge-active" } else { "badge badge-inactive" }}>
-                                                {if item.is_active { "Activo" } else { "Inactivo" }}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <button class="btn btn-sm" on:click=move |_| open_edit(item_clone.clone())>"Editar"</button>
-                                        </td>
-                                    </tr>
-                                }
-                            }).collect::<Vec<_>>()}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    columns=columns.clone()
+                    page=RwSignal::new(1)
+                    total_pages=1
+                    total=n
+                    on_page_change=Arc::new(|_| {})
+                    on_filter=None
+                >
+                    <tbody>
+                        {data.into_iter().map(|item| {
+                            let item_clone = item.clone();
+                            view! {
+                                <tr>
+                                    <td class="hide-sm">{item.id}</td>
+                                    <td>{item.serial_number.clone().unwrap_or_default()}</td>
+                                    <td>{item.ip_address}</td>
+                                    <td class="hide-md">{item.port.map(|p| p.to_string()).unwrap_or_default()}</td>
+                                    <td class="hide-md">{item.label.clone().unwrap_or_default()}</td>
+                                    <td>
+                                        <span class={if item.is_active { "badge badge-active" } else { "badge badge-inactive" }}>
+                                            {if item.is_active { "Activo" } else { "Inactivo" }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm" on:click=move |_| open_edit(item_clone.clone())>"Editar"</button>
+                                    </td>
+                                </tr>
+                            }
+                        }).collect::<Vec<_>>()}
+                    </tbody>
+                </DataTable>
             }.into_any()
         }}
 

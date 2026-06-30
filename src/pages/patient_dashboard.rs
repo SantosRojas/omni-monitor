@@ -17,15 +17,18 @@ pub fn PatientDashboardPage() -> impl IntoView {
     let dashboard = RwSignal::new(Option::<PatientDashboard>::None);
     let loading = RwSignal::new(true);
 
-    spawn_local(async move {
+    Effect::new(move |_| {
         let pid = id();
-        if pid > 0 {
-            match api::get_patient_dashboard(pid, None, None, None).await {
-                Ok(d) => dashboard.set(Some(d)),
-                Err(e) => global_error.set(Some(e)),
+        loading.set(true);
+        spawn_local(async move {
+            if pid > 0 {
+                match api::get_patient_dashboard(pid, None, None, None).await {
+                    Ok(d) => dashboard.set(Some(d)),
+                    Err(e) => global_error.set(Some(e)),
+                }
             }
-        }
-        loading.set(false);
+            loading.set(false);
+        });
     });
 
     view! {
@@ -40,7 +43,10 @@ pub fn PatientDashboardPage() -> impl IntoView {
                 None => view! { <EmptyState message="No hay datos disponibles" /> }.into_any(),
                 Some(d) => {
                     let signals = d.signals.clone();
-                    view! {
+                    if signals.is_empty() {
+                        view! { <EmptyState message="No hay datos disponibles" /> }.into_any()
+                    } else {
+                        view! {
                         {signals.iter().map(|s| {
                             let signal = s.clone();
                             view! {
@@ -79,6 +85,7 @@ pub fn PatientDashboardPage() -> impl IntoView {
                             }
                         }).collect::<Vec<_>>()}
                     }.into_any()
+                    }
                 }
             }
         }}

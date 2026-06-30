@@ -358,37 +358,37 @@ impl DbPool {
             Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
                 Self::Sqlite(p) => {
                 if let Some(s) = search {
-                    sqlx::query_as::<_, Patient>("SELECT * FROM patients WHERE patient_id_str LIKE ? ORDER BY id DESC LIMIT ? OFFSET ?")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str LIKE ? ORDER BY p.id DESC LIMIT ? OFFSET ?")
                         .bind(format!("%{}%", s)).bind(per_page).bind(offset).fetch_all(p).await?
                 } else {
-                    sqlx::query_as::<_, Patient>("SELECT * FROM patients ORDER BY id DESC LIMIT ? OFFSET ?")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY p.id DESC LIMIT ? OFFSET ?")
                         .bind(per_page).bind(offset).fetch_all(p).await?
                 }
             }
             Self::Postgres(p) => {
                 if let Some(s) = search {
-                    sqlx::query_as::<_, Patient>("SELECT * FROM patients WHERE patient_id_str ILIKE $1 ORDER BY id DESC LIMIT $2 OFFSET $3")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str ILIKE $1 ORDER BY p.id DESC LIMIT $2 OFFSET $3")
                         .bind(format!("%{}%", s)).bind(per_page).bind(offset).fetch_all(p).await?
                 } else {
-                    sqlx::query_as::<_, Patient>("SELECT * FROM patients ORDER BY id DESC LIMIT $1 OFFSET $2")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY p.id DESC LIMIT $1 OFFSET $2")
                         .bind(per_page).bind(offset).fetch_all(p).await?
                 }
             }
             Self::Mysql(p) => {
                 if let Some(s) = search {
-                    sqlx::query_as::<_, Patient>("SELECT * FROM patients WHERE patient_id_str LIKE ? ORDER BY id DESC LIMIT ? OFFSET ?")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str LIKE ? ORDER BY p.id DESC LIMIT ? OFFSET ?")
                         .bind(format!("%{}%", s)).bind(per_page).bind(offset).fetch_all(p).await?
                 } else {
-                    sqlx::query_as::<_, Patient>("SELECT * FROM patients ORDER BY id DESC LIMIT ? OFFSET ?")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY p.id DESC LIMIT ? OFFSET ?")
                         .bind(per_page).bind(offset).fetch_all(p).await?
                 }
             }
             Self::Mssql(p) => {
                 if let Some(s) = search {
-                    sqlx::query_as::<_, Patient>("SELECT * FROM patients WHERE patient_id_str LIKE @P1 ORDER BY id DESC OFFSET @P2 ROWS FETCH NEXT @P3 ROWS ONLY")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str LIKE @P1 ORDER BY p.id DESC OFFSET @P2 ROWS FETCH NEXT @P3 ROWS ONLY")
                         .bind(format!("%{}%", s)).bind(offset).bind(per_page).fetch_all(p).await?
                 } else {
-                    sqlx::query_as::<_, Patient>("SELECT * FROM patients ORDER BY id DESC OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY p.id DESC OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY")
                         .bind(offset).bind(per_page).fetch_all(p).await?
                 }
             }
@@ -399,10 +399,10 @@ impl DbPool {
     pub async fn find_patient_by_id(&self, id: i64) -> Result<Option<Patient>, sqlx::Error> {
         match self {
             Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-                Self::Sqlite(p) => sqlx::query_as("SELECT * FROM patients WHERE id = ?").bind(id).fetch_optional(p).await,
-            Self::Postgres(p) => sqlx::query_as("SELECT * FROM patients WHERE id = $1").bind(id).fetch_optional(p).await,
-            Self::Mysql(p) => sqlx::query_as("SELECT * FROM patients WHERE id = ?").bind(id).fetch_optional(p).await,
-            Self::Mssql(p) => sqlx::query_as("SELECT * FROM patients WHERE id = @P1").bind(id).fetch_optional(p).await,
+            Self::Sqlite(p) => sqlx::query_as("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.id = ?").bind(id).fetch_optional(p).await,
+            Self::Postgres(p) => sqlx::query_as("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.id = $1").bind(id).fetch_optional(p).await,
+            Self::Mysql(p) => sqlx::query_as("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.id = ?").bind(id).fetch_optional(p).await,
+            Self::Mssql(p) => sqlx::query_as("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.id = @P1").bind(id).fetch_optional(p).await,
         }
     }
 
@@ -712,7 +712,7 @@ impl DbPool {
             }
             Self::Mysql(p) => sqlx::query_as(agg_sql).bind(patient_id).fetch_all(p).await?,
             Self::Mssql(p) => {
-                let mssql_sql = agg_sql.replace('?', "@P1");
+                let mssql_sql = agg_sql.replace('?', "@P1").replace("CAST(te.physical_value AS REAL)", "TRY_CAST(te.physical_value AS REAL)");
                 sqlx::query_as(AssertSqlSafe(mssql_sql)).bind(patient_id).fetch_all(p).await?
             }
         };
@@ -764,7 +764,7 @@ impl DbPool {
             }
             Self::Mysql(p) => sqlx::query_as(agg_sql).bind(therapy_id).fetch_all(p).await?,
             Self::Mssql(p) => {
-                let mssql_sql = agg_sql.replace('?', "@P1");
+                let mssql_sql = agg_sql.replace('?', "@P1").replace("CAST(te.physical_value AS REAL)", "TRY_CAST(te.physical_value AS REAL)");
                 sqlx::query_as(AssertSqlSafe(mssql_sql)).bind(therapy_id).fetch_all(p).await?
             }
         };
@@ -803,9 +803,9 @@ impl DbPool {
     }
 
     // --- Export (limited to 100k rows to prevent OOM) ---
-    pub async fn export_patient_telemetry(&self, patient_id: i64) -> Result<Vec<TelemetryReading>, sqlx::Error> {
+    pub async fn export_patient_telemetry(&self, patient_id: i64) -> Result<Vec<TelemetryExportRow>, sqlx::Error> {
         const EXPORT_LIMIT: i64 = 100_000;
-        let sql = "SELECT te.* FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = ? ORDER BY te.timestamp";
+        let sql = "SELECT te.id, te.timestamp, te.signal_id, te.physical_value, COALESCE(s.unit, te.unit) as unit, COALESCE(s.display_name, s.internal_name) as signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = ? ORDER BY te.timestamp";
         let limited_sql = match self {
             Self::Sqlite(_) | Self::Mysql(_) => format!("{} LIMIT {}", sql, EXPORT_LIMIT),
             Self::Postgres(_) => format!("{} LIMIT ${}", sql.replace('?', "$1"), EXPORT_LIMIT),
@@ -814,16 +814,16 @@ impl DbPool {
         };
         match self {
             Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-            Self::Sqlite(p) => sqlx::query_as(AssertSqlSafe(limited_sql.clone())).bind(patient_id).fetch_all(p).await,
-            Self::Postgres(p) => sqlx::query_as(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
-            Self::Mysql(p) => sqlx::query_as(AssertSqlSafe(limited_sql.clone())).bind(patient_id).fetch_all(p).await,
-            Self::Mssql(p) => sqlx::query_as(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
+            Self::Sqlite(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql.clone())).bind(patient_id).fetch_all(p).await,
+            Self::Postgres(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
+            Self::Mysql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql.clone())).bind(patient_id).fetch_all(p).await,
+            Self::Mssql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
         }
     }
 
-    pub async fn export_therapy_telemetry(&self, therapy_id: i64) -> Result<Vec<TelemetryReading>, sqlx::Error> {
+    pub async fn export_therapy_telemetry(&self, therapy_id: i64) -> Result<Vec<TelemetryExportRow>, sqlx::Error> {
         const EXPORT_LIMIT: i64 = 100_000;
-        let sql = "SELECT * FROM telemetry WHERE therapy_id = ? ORDER BY timestamp";
+        let sql = "SELECT te.id, te.timestamp, te.signal_id, te.physical_value, COALESCE(s.unit, te.unit) as unit, COALESCE(s.display_name, s.internal_name) as signal_name FROM telemetry te LEFT JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = ? ORDER BY te.timestamp";
         let limited_sql = match self {
             Self::Sqlite(_) | Self::Mysql(_) => format!("{} LIMIT {}", sql, EXPORT_LIMIT),
             Self::Postgres(_) => format!("{} LIMIT ${}", sql.replace('?', "$1"), EXPORT_LIMIT),
@@ -832,10 +832,20 @@ impl DbPool {
         };
         match self {
             Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-            Self::Sqlite(p) => sqlx::query_as(AssertSqlSafe(limited_sql.clone())).bind(therapy_id).fetch_all(p).await,
-            Self::Postgres(p) => sqlx::query_as(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
-            Self::Mysql(p) => sqlx::query_as(AssertSqlSafe(limited_sql.clone())).bind(therapy_id).fetch_all(p).await,
-            Self::Mssql(p) => sqlx::query_as(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
+            Self::Sqlite(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql.clone())).bind(therapy_id).fetch_all(p).await,
+            Self::Postgres(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
+            Self::Mysql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql.clone())).bind(therapy_id).fetch_all(p).await,
+            Self::Mssql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
+        }
+    }
+
+    pub async fn load_equivalences(&self) -> Result<Vec<AttributeEquivalence>, sqlx::Error> {
+        match self {
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences").fetch_all(p).await,
+            Self::Postgres(p) => sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences").fetch_all(p).await,
+            Self::Mysql(p) => sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences").fetch_all(p).await,
+            Self::Mssql(p) => sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences").fetch_all(p).await,
         }
     }
 

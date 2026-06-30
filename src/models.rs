@@ -48,6 +48,8 @@ pub struct Patient {
     pub created_at: Option<NaiveDateTime>,
     pub therapy_start: Option<NaiveDateTime>,
     pub therapy_end: Option<NaiveDateTime>,
+    pub active_therapy_count: Option<i64>,
+    pub completed_therapy_count: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,6 +112,14 @@ pub struct MachineIpWithSerial {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ssr", derive(FromRow))]
+pub struct AttributeEquivalence {
+    pub signal_id: i64,
+    pub numeric_value: i64,
+    pub display_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(FromRow))]
 pub struct TelemetryReading {
     pub id: i64,
     pub timestamp: Option<NaiveDateTime>,
@@ -118,6 +128,17 @@ pub struct TelemetryReading {
     pub raw_value: Option<i64>,
     pub physical_value: Option<String>,
     pub unit: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(FromRow))]
+pub struct TelemetryExportRow {
+    pub id: i64,
+    pub timestamp: Option<NaiveDateTime>,
+    pub signal_id: Option<i64>,
+    pub physical_value: Option<String>,
+    pub unit: Option<String>,
+    pub signal_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

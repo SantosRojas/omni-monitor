@@ -3,6 +3,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use crate::models::{UserResponse, CreateUserRequest, UpdateUserRequest};
 use crate::utils::api;
+use crate::components::table::{DataTable, ColumnDef};
 use crate::components::loading_state::LoadingState;
 use crate::components::empty_state::EmptyState;
 use crate::components::modal::Modal;
@@ -27,6 +28,16 @@ pub fn AdminUsersPage() -> impl IntoView {
     };
     fetch();
 
+    let columns = vec![
+        ColumnDef { header: "ID", filterable: false, responsive_hide: Some("hide-sm") },
+        ColumnDef { header: "Usuario", filterable: true, responsive_hide: None },
+        ColumnDef { header: "Nombre", filterable: true, responsive_hide: Some("hide-md") },
+        ColumnDef { header: "Email", filterable: true, responsive_hide: Some("hide-md") },
+        ColumnDef { header: "Rol", filterable: false, responsive_hide: None },
+        ColumnDef { header: "Activo", filterable: false, responsive_hide: None },
+        ColumnDef { header: "", filterable: false, responsive_hide: None },
+    ];
+
     view! {
         <div class="page-title">Usuarios</div>
 
@@ -42,46 +53,41 @@ pub fn AdminUsersPage() -> impl IntoView {
             if data.is_empty() {
                 return view! { <EmptyState message="No hay usuarios" /> }.into_any();
             }
+            let n = data.len() as i64;
             view! {
-                <div class="table-container glass" style="padding:0;overflow:hidden;">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Usuario</th>
-                                <th>Nombre</th>
-                                <th>Email</th>
-                                <th>Rol</th>
-                                <th>Activo</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.into_iter().map(|u| {
-                                let uid = u.id;
-                                view! {
-                                    <tr>
-                                        <td>{u.id}</td>
-                                        <td style="font-weight:500;color:var(--text-primary);">{u.username}</td>
-                                        <td>{u.full_name}</td>
-                                        <td>{u.email}</td>
-                                        <td>
-                                            <span class={format!("badge badge-{}", u.role)}>{u.role.clone()}</span>
-                                        </td>
-                                        <td>
-                                            <span class={if u.active { "badge badge-active" } else { "badge badge-inactive" }}>
-                                                {if u.active { "Activo" } else { "Inactivo" }}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <button class="btn btn-sm" on:click=move |_| editing_id.set(Some(uid))>"Editar"</button>
-                                        </td>
-                                    </tr>
-                                }
-                            }).collect::<Vec<_>>()}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    columns=columns.clone()
+                    page=RwSignal::new(1)
+                    total_pages=1
+                    total=n
+                    on_page_change=Arc::new(|_| {})
+                    on_filter=None
+                >
+                    <tbody>
+                        {data.into_iter().map(|u| {
+                            let uid = u.id;
+                            view! {
+                                <tr>
+                                    <td class="hide-sm">{u.id}</td>
+                                    <td style="font-weight:500;color:var(--text-primary);">{u.username}</td>
+                                    <td class="hide-md">{u.full_name}</td>
+                                    <td class="hide-md">{u.email}</td>
+                                    <td>
+                                        <span class={format!("badge badge-{}", u.role)}>{u.role.clone()}</span>
+                                    </td>
+                                    <td>
+                                        <span class={if u.active { "badge badge-active" } else { "badge badge-inactive" }}>
+                                            {if u.active { "Activo" } else { "Inactivo" }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm" on:click=move |_| editing_id.set(Some(uid))>"Editar"</button>
+                                    </td>
+                                </tr>
+                            }
+                        }).collect::<Vec<_>>()}
+                    </tbody>
+                </DataTable>
             }.into_any()
         }}
 

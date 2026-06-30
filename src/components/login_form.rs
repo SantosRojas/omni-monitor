@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use crate::utils::api;
+use crate::utils::auth::use_auth;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use crate::utils::auth::use_auth;
-use crate::utils::api;
+use std::sync::Arc;
 
 #[component]
 pub fn LoginForm(on_success: Arc<dyn Fn() + Send + Sync>) -> impl IntoView {

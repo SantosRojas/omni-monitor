@@ -311,6 +311,43 @@ tr:hover td {
     background: rgba(255, 255, 255, 0.03);
 }
 
+.table-filter-input {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: var(--text-primary);
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.2s ease;
+}
+
+.table-filter-input:focus {
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.table-filter-input::placeholder {
+    color: var(--text-muted);
+}
+
+.hide-sm { display: none; }
+@media (min-width: 577px) {
+    .hide-sm { display: table-cell; }
+}
+.hide-md { display: none; }
+@media (min-width: 769px) {
+    .hide-md { display: table-cell; }
+}
+.hide-lg { display: none; }
+@media (min-width: 993px) {
+    .hide-lg { display: table-cell; }
+}
+
 .badge {
     display: inline-block;
     padding: 2px 10px;
@@ -597,3 +634,4 @@ tr:hover td {
         gap: 12px;
     }
 }
+

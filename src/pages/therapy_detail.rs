@@ -17,15 +17,18 @@ pub fn TherapyDetailPage() -> impl IntoView {
     let dashboard = RwSignal::new(Option::<PatientDashboard>::None);
     let loading = RwSignal::new(true);
 
-    spawn_local(async move {
+    Effect::new(move |_| {
         let tid = id();
-        if tid > 0 {
-            match api::get_therapy_dashboard(tid).await {
-                Ok(d) => dashboard.set(Some(d)),
-                Err(e) => global_error.set(Some(e)),
+        loading.set(true);
+        spawn_local(async move {
+            if tid > 0 {
+                match api::get_therapy_dashboard(tid).await {
+                    Ok(d) => dashboard.set(Some(d)),
+                    Err(e) => global_error.set(Some(e)),
+                }
             }
-        }
-        loading.set(false);
+            loading.set(false);
+        });
     });
 
     view! {
@@ -40,23 +43,27 @@ pub fn TherapyDetailPage() -> impl IntoView {
                 None => view! { <EmptyState message="No hay datos de esta terapia" /> }.into_any(),
                 Some(d) => {
                     let signals = d.signals.clone();
-                    view! {
-                        {signals.iter().map(|s| {
-                            let signal = s.clone();
-                            view! {
-                                <div class="card glass" style="margin-bottom:24px;">
-                                    <div class="card-title">{signal.display_name.clone().unwrap_or(signal.internal_name.clone())}</div>
-                                    <div class="stats-grid">
-                                        <StatsCard label="Promedio".to_string() value={signal.average.map(|v| format!("{:.2}", v)).unwrap_or_else(|| "—".to_string())} color=Some("var(--accent)".to_string()) />
-                                        <StatsCard label="Mínimo".to_string() value={signal.minimum.map(|v| format!("{:.2}", v)).unwrap_or_else(|| "—".to_string())} color=Some("var(--success)".to_string()) />
-                                        <StatsCard label="Máximo".to_string() value={signal.maximum.map(|v| format!("{:.2}", v)).unwrap_or_else(|| "—".to_string())} color=Some("var(--danger)".to_string()) />
-                                        <StatsCard label="Muestras".to_string() value={signal.count.to_string()} color=Some("var(--warning)".to_string()) />
+                    if signals.is_empty() {
+                        view! { <EmptyState message="No hay datos de esta terapia" /> }.into_any()
+                    } else {
+                        view! {
+                            {signals.iter().map(|s| {
+                                let signal = s.clone();
+                                view! {
+                                    <div class="card glass" style="margin-bottom:24px;">
+                                        <div class="card-title">{signal.display_name.clone().unwrap_or(signal.internal_name.clone())}</div>
+                                        <div class="stats-grid">
+                                            <StatsCard label="Promedio".to_string() value={signal.average.map(|v| format!("{:.2}", v)).unwrap_or_else(|| "—".to_string())} color=Some("var(--accent)".to_string()) />
+                                            <StatsCard label="Mínimo".to_string() value={signal.minimum.map(|v| format!("{:.2}", v)).unwrap_or_else(|| "—".to_string())} color=Some("var(--success)".to_string()) />
+                                            <StatsCard label="Máximo".to_string() value={signal.maximum.map(|v| format!("{:.2}", v)).unwrap_or_else(|| "—".to_string())} color=Some("var(--danger)".to_string()) />
+                                            <StatsCard label="Muestras".to_string() value={signal.count.to_string()} color=Some("var(--warning)".to_string()) />
+                                        </div>
+                                        <DashboardChart signal=signal width=800.0 height=250.0 />
                                     </div>
-                                    <DashboardChart signal=signal width=800.0 height=250.0 />
-                                </div>
-                            }
-                        }).collect::<Vec<_>>()}
-                    }.into_any()
+                                }
+                            }).collect::<Vec<_>>()}
+                        }.into_any()
+                    }
                 }
             }
         }}
