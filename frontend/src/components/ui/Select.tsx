@@ -44,10 +44,8 @@ export function Select<T extends string | number>({ options, value, onChange, pl
         <div
           className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-sm"
           style={{
-            background: 'var(--glass-sm-bg)',
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
-            border: '1px solid var(--glass-sm-border)',
+            background: 'var(--dropdown-bg)',
+            border: '1px solid var(--glass-border)',
           }}
         >
           {options.map(opt => (
@@ -61,7 +59,7 @@ export function Select<T extends string | number>({ options, value, onChange, pl
                 fontWeight: opt.value === value ? 600 : 400,
                 background: opt.value === value ? 'color-mix(in srgb, var(--accent) 18%, transparent)' : 'transparent',
               }}
-              onMouseEnter={e => { if (opt.value !== value) e.currentTarget.style.background = 'var(--surface-hover)' }}
+              onMouseEnter={e => { if (opt.value !== value) e.currentTarget.style.background = 'var(--dropdown-hover)' }}
               onMouseLeave={e => { if (opt.value !== value) e.currentTarget.style.background = 'transparent' }}
             >
               {opt.label}

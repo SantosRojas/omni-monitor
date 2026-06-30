@@ -30,6 +30,8 @@
   --surface-btn-hover: rgba(255, 255, 255, 0.12);
   --surface-row-hover: rgba(255, 255, 255, 0.03);
   --border-subtle: rgba(255, 255, 255, 0.08);
+  --dropdown-bg: #1c1c3a;
+  --dropdown-hover: rgba(255, 255, 255, 0.08);
 }
 
 :root:not(.dark) {
@@ -51,6 +53,8 @@
   --surface-btn-hover: rgba(0, 0, 0, 0.08);
   --surface-row-hover: rgba(0, 0, 0, 0.015);
   --border-subtle: rgba(0, 0, 0, 0.06);
+  --dropdown-bg: #ffffff;
+  --dropdown-hover: rgba(0, 0, 0, 0.05);
   color-scheme: light;
 }
 
