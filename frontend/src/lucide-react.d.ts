@@ -3,6 +3,7 @@ declare module 'lucide-react' {
   type Icon = FC<SVGProps<SVGSVGElement>>
   export const Activity: Icon
   export const ArrowLeft: Icon
+  export const Check: Icon
   export const ChevronLeft: Icon
   export const ChevronRight: Icon
   export const Clock: Icon
