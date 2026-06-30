@@ -40,12 +40,13 @@ export function TherapyDetail() {
 
   return (
     <div>
-      <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-(--text-secondary) hover:text-(--text-primary) mb-4 cursor-pointer">
-        <ArrowLeft className="w-4 h-4" /> Volver
-      </button>
-
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
-        <h2 className="text-lg md:text-xl font-bold text-(--text-primary)">Terapia #{id}</h2>
+        <div className='flex gap-1'>
+          <button onClick={() => navigate(-1)} className="px-3 py-1.5 flex items-center gap-1.5 text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) cursor-pointer">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <h2 className="text-lg md:text-xl font-bold text-(--text-primary)">Terapia #{id}</h2>
+        </div>
         <button onClick={() => triggerTherapyExport(Number(id)).catch(console.error)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) cursor-pointer">
           <FileDown className="w-4 h-4" /> Exportar
         </button>
