@@ -1,8 +1,6 @@
 /target
 .env
 /static/index.html
-/static/pkg/
-/static/styles/
 /static/assets/
 /static/vite.svg
 /static/favicon.svg

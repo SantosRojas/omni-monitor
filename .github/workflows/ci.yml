@@ -28,11 +28,8 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all --check
 
-      - name: Clippy (SSR)
+      - name: Clippy
         run: cargo clippy --features ssr -- -D warnings
-
-      - name: Clippy (Frontend)
-        run: cargo clippy --features frontend --target wasm32-unknown-unknown -- -D warnings
 
       - name: Build (SSR)
         run: cargo build --features ssr --verbose

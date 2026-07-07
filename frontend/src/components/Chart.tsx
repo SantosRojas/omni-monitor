@@ -105,7 +105,7 @@ export function Chart({ signal }: ChartProps) {
   return (
     <div
       ref={wrapRef}
-      className={`glass p-4 mb-4 ${isFullscreen ? '!fixed inset-0 z-[9999] flex flex-col' : ''}`}
+      className={`glass p-4 mb-4 ${isFullscreen ? 'fixed! inset-0 z-9999 flex flex-col' : ''}`}
     >
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-base font-semibold text-(--text-primary)">
@@ -155,7 +155,7 @@ export function Chart({ signal }: ChartProps) {
               labelFormatter={ms => new Date(ms).toLocaleString('es-PE')}
               formatter={(val: number) => [val.toFixed(2), signalName]}
               contentStyle={{
-                background: 'var(--glass-bg)',
+                background: 'var(--sidebar-bg)',
                 border: '1px solid var(--glass-border)',
                 borderRadius: '8px',
                 color: 'var(--text-primary)',
