@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   useReactTable,
   getCoreRowModel,
+  getFilteredRowModel,
   createColumnHelper,
 } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import type { ColumnFiltersState } from '@tanstack/react-table'
+import { Plus, Pencil, Trash2, Search } from 'lucide-react'
 import type { Equivalence } from '../types'
 import * as equivalencesApi from '../api/equivalences'
-import { Spinner } from '../components/ui/Spinner'
-import { Modal } from '../components/ui/Modal'
+import { Spinner, Modal, ColumnFilter } from '../components/ui'
 
 const helper = createColumnHelper<Equivalence>()
 
@@ -28,6 +29,8 @@ export function AdminEquivalences() {
   const [formInternalName, setFormInternalName] = useState('')
   const [formNumericValue, setFormNumericValue] = useState('')
   const [formDisplayName, setFormDisplayName] = useState('')
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [globalFilter, setGlobalFilter] = useState('')
 
   const fetchData = () => {
     setLoading(true)
@@ -120,6 +123,11 @@ export function AdminEquivalences() {
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: 'includesString',
+    state: { columnFilters, globalFilter },
   })
 
   return (
@@ -131,6 +139,16 @@ export function AdminEquivalences() {
         </button>
       </div>
 
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-(--text-muted)" />
+        <input
+          value={globalFilter ?? ''}
+          onChange={e => setGlobalFilter(e.target.value)}
+          placeholder="Buscar en toda la tabla..."
+          className="w-full pl-9 pr-3 py-2 text-sm border border-(--glass-border) rounded-sm bg-(--surface-btn) text-(--text-primary) outline-none focus:border-[var(--accent)]"
+        />
+      </div>
+
       {loading ? <Spinner message="Cargando equivalencias..." /> : (
         <div className="glass overflow-x-auto">
           <table className="w-full border-collapse">
@@ -139,7 +157,10 @@ export function AdminEquivalences() {
                 <tr key={hg.id}>
                   {hg.headers.map(h => (
                     <th key={h.id} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] ${hideSm(h.id)}`}>
-                      {h.column.columnDef.header as string}
+                      <div className="flex flex-col">
+                        {h.column.columnDef.header as string}
+                        {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
+                      </div>
                     </th>
                   ))}
                 </tr>

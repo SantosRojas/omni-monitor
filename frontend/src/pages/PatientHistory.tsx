@@ -4,12 +4,14 @@ import {
   useReactTable,
   getCoreRowModel,
   getPaginationRowModel,
+  getFilteredRowModel,
   createColumnHelper,
 } from '@tanstack/react-table'
+import type { ColumnFiltersState } from '@tanstack/react-table'
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { TelemetryReading } from '../types'
 import * as patientsApi from '../api/patients'
-import { Spinner } from '../components/ui/Spinner'
+import { Spinner, ColumnFilter } from '../components/ui'
 import { formatDate } from '../utils/date'
 
 const helper = createColumnHelper<TelemetryReading>()
@@ -24,6 +26,7 @@ export function PatientHistory() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const perPage = 50
 
   useEffect(() => {
@@ -50,7 +53,10 @@ export function PatientHistory() {
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    onColumnFiltersChange: setColumnFilters,
+    state: { columnFilters },
     manualPagination: true,
     pageCount: Math.ceil(total / perPage),
   })
@@ -71,7 +77,10 @@ export function PatientHistory() {
                 <tr key={hg.id}>
                   {hg.headers.map(h => (
                     <th key={h.id} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] ${hideSm(h.id)}`}>
-                      {h.column.columnDef.header as string}
+                      <div className="flex flex-col">
+                        {h.column.columnDef.header as string}
+                        {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
+                      </div>
                     </th>
                   ))}
                 </tr>

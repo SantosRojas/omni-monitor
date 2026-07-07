@@ -2,27 +2,26 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $ProjectRoot
 
-# ---- Matar instancia previa del servidor si existe ----
-$prev = Get-Process monitor-server -ErrorAction SilentlyContinue
-if ($prev) {
-    Write-Host "  -> Deteniendo servidor previo..." -ForegroundColor Yellow
-    $prev | Stop-Process -Force
-    Start-Sleep -Seconds 1
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  DEV MODE - Monitor OMNI" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+
+Write-Host "[1/2] Iniciando frontend (http://localhost:5173)..." -ForegroundColor Yellow
+$frontend = Start-Job -ScriptBlock {
+    Set-Location "$using:ProjectRoot\frontend"
+    npm run dev
 }
 
-# ---- Verificar herramientas ----
-Write-Host "`n[1/2] Verificando herramientas..." -ForegroundColor Cyan
+Start-Sleep -Seconds 3
 
-$hasWatch = Get-Command cargo-watch -ErrorAction SilentlyContinue
-if (-not $hasWatch) {
-    Write-Host "  -> Instalando cargo-watch..." -ForegroundColor Yellow
-    cargo install cargo-watch
+Write-Host "[2/2] Iniciando backend (http://localhost:9002)..." -ForegroundColor Yellow
+Write-Host "Presiona Ctrl+C para detener ambos`n" -ForegroundColor Gray
+
+try {
+    cargo run
+} finally {
+    Write-Host "`nDeteniendo frontend..." -ForegroundColor Yellow
+    Stop-Job $frontend -ErrorAction SilentlyContinue
+    Remove-Job $frontend -ErrorAction SilentlyContinue
 }
-
-Write-Host "  -> OK" -ForegroundColor Green
-
-# ---- Watch ----
-Write-Host "`n[2/2] Iniciando cargo watch (vigilando src/)..." -ForegroundColor Cyan
-Write-Host "  -> Los cambios en 'src/' reconstruirán el servidor automáticamente.`n" -ForegroundColor Yellow
-
-cargo watch -w src/ -x "run --features ssr"

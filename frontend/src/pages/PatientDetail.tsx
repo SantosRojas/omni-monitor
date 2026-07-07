@@ -3,14 +3,15 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   useReactTable,
   getCoreRowModel,
+  getFilteredRowModel,
   createColumnHelper,
 } from '@tanstack/react-table'
-import { ArrowLeft, FileDown, LineChart, Clock } from 'lucide-react'
+import type { ColumnFiltersState } from '@tanstack/react-table'
+import { ArrowLeft, FileDown, LineChart, Clock, Search } from 'lucide-react'
 import type { Patient, TherapyWithMachine } from '../types'
 import * as patientsApi from '../api/patients'
 import { triggerPatientExport } from '../api/export'
-import { Spinner } from '../components/ui/Spinner'
-import { Badge } from '../components/ui/Badge'
+import { Spinner, Badge, ColumnFilter } from '../components/ui'
 import { formatDate, formatDateShort } from '../utils/date'
 
 const therapyHelper = createColumnHelper<TherapyWithMachine>()
@@ -24,6 +25,8 @@ export function PatientDetail() {
   const [patient, setPatient] = useState<Patient | null>(null)
   const [therapies, setTherapies] = useState<TherapyWithMachine[]>([])
   const [loading, setLoading] = useState(true)
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [globalFilter, setGlobalFilter] = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -65,6 +68,11 @@ export function PatientDetail() {
     data: therapies,
     columns: therapyColumns,
     getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: 'includesString',
+    state: { columnFilters, globalFilter },
   })
 
   if (loading) return <Spinner message="Cargando paciente..." />
@@ -102,7 +110,18 @@ export function PatientDetail() {
         </div>
       </div>
 
-      <h3 className="text-base md:text-lg font-semibold mb-3 text-(--text-primary)">Terapias</h3>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-3">
+        <h3 className="text-base md:text-lg font-semibold text-(--text-primary)">Terapias</h3>
+        <div className="relative w-full sm:w-64 sm:ml-auto">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-(--text-muted)" />
+          <input
+            value={globalFilter ?? ''}
+            onChange={e => setGlobalFilter(e.target.value)}
+            placeholder="Buscar en toda la tabla..."
+            className="w-full pl-9 pr-3 py-2 text-sm border border-(--glass-border) rounded-sm bg-(--surface-btn) text-(--text-primary) outline-none focus:border-[var(--accent)]"
+          />
+        </div>
+      </div>
       {therapies.length === 0 ? (
         <div className="text-center py-10 text-(--text-muted) text-sm">Sin terapias registradas</div>
       ) : (
@@ -113,7 +132,10 @@ export function PatientDetail() {
                 <tr key={hg.id}>
                   {hg.headers.map(h => (
                     <th key={h.id} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-(--border-subtle) ${hideSm(h.id)}`}>
-                      {h.column.columnDef.header as string}
+                      <div className="flex flex-col">
+                        {h.column.columnDef.header as string}
+                        {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
+                      </div>
                     </th>
                   ))}
                 </tr>

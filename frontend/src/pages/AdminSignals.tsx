@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   useReactTable,
   getCoreRowModel,
+  getFilteredRowModel,
   createColumnHelper,
 } from '@tanstack/react-table'
+import type { ColumnFiltersState } from '@tanstack/react-table'
 import { Pencil } from 'lucide-react'
 import type { Signal } from '../types'
 import * as signalsApi from '../api/signals'
-import { Spinner } from '../components/ui/Spinner'
-import { Modal } from '../components/ui/Modal'
+import { Spinner, Modal, ColumnFilter } from '../components/ui'
 
 const helper = createColumnHelper<Signal>()
 
@@ -21,6 +22,7 @@ export function AdminSignals() {
   const [selected, setSelected] = useState<Signal | null>(null)
   const [formDisplayName, setFormDisplayName] = useState('')
   const [formUnit, setFormUnit] = useState('')
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 
   const fetchData = () => {
     setLoading(true)
@@ -86,6 +88,9 @@ export function AdminSignals() {
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnFiltersChange: setColumnFilters,
+    state: { columnFilters },
   })
 
   return (
@@ -102,7 +107,10 @@ export function AdminSignals() {
                 <tr key={hg.id}>
                   {hg.headers.map(h => (
                     <th key={h.id} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] ${hideSm(h.id)}`}>
-                      {h.column.columnDef.header as string}
+                      <div className="flex flex-col">
+                        {h.column.columnDef.header as string}
+                        {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
+                      </div>
                     </th>
                   ))}
                 </tr>
