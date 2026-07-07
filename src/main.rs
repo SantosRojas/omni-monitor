@@ -1,7 +1,6 @@
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
-    use std::net::SocketAddr;
     use std::sync::Arc;
     use tower_http::cors::{AllowOrigin, CorsLayer};
     use tower_http::services::{ServeDir, ServeFile};
@@ -72,7 +71,11 @@ async fn main() {
         .layer(cors)
         .layer(TraceLayer::new_for_http());
 
-    let addr = SocketAddr::new(config.monitor_host.parse().expect("Invalid host"), config.monitor_port);
+    let addr = tokio::net::lookup_host(format!("{}:{}", config.monitor_host, config.monitor_port))
+        .await
+        .expect("Failed to resolve host")
+        .next()
+        .expect("No address resolved");
 
     let listener = tokio::net::TcpListener::bind(addr).await.expect("Failed to bind");
 

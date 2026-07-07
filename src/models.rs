@@ -116,8 +116,42 @@ pub struct MachineIpWithSerial {
 #[cfg_attr(feature = "ssr", derive(FromRow))]
 pub struct AttributeEquivalence {
     pub signal_id: i64,
-    pub numeric_value: i64,
+    pub numeric_value: f64,
     pub display_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(FromRow))]
+pub struct EquivalenceResponse {
+    pub signal_id: i64,
+    pub internal_name: String,
+    pub numeric_value: f64,
+    pub display_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateEquivalenceRequest {
+    pub internal_name: String,
+    pub numeric_value: f64,
+    pub display_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateEquivalenceRequest {
+    pub signal_id: i64,
+    pub numeric_value: f64,
+    pub display_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateSignalRequest {
+    pub display_name: Option<String>,
+    pub unit: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteEquivalenceBody {
+    pub deletion_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -256,6 +290,9 @@ pub struct PaginationParams {
     pub page: Option<i64>,
     pub per_page: Option<i64>,
     pub search: Option<String>,
+    pub signal_ids: Option<String>,
+    pub from: Option<String>,
+    pub to: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

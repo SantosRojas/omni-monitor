@@ -15,8 +15,8 @@ pub struct JwtClaims {
     pub full_name: String,
     pub email: String,
     pub role: String,
-    pub iat: usize,
-    pub exp: usize,
+    pub iat: u64,
+    pub exp: u64,
     pub iss: String,
 }
 
@@ -28,10 +28,14 @@ pub fn hash_password(password: &str) -> Result<String, argon2::password_hash::Er
 }
 
 pub fn verify_password(stored: &str, candidate: &str) -> bool {
-    PasswordHash::new(stored)
-        .ok()
-        .map(|parsed| Argon2::default().verify_password(candidate.as_bytes(), &parsed).is_ok())
-        .unwrap_or(false)
+    let parsed = match PasswordHash::new(stored) {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to parse stored password hash");
+            return false;
+        }
+    };
+    Argon2::default().verify_password(candidate.as_bytes(), &parsed).is_ok()
 }
 
 pub fn issue_token(
@@ -40,7 +44,7 @@ pub fn issue_token(
     expiration_hours: u64,
     issuer: &str,
 ) -> Result<String, jsonwebtoken::errors::Error> {
-    let now = Utc::now().timestamp() as usize;
+    let now = Utc::now().timestamp() as u64;
     let claims = JwtClaims {
         user_id: user.id,
         username: user.username.clone(),
@@ -48,7 +52,7 @@ pub fn issue_token(
         email: user.email.clone(),
         role: user.role.clone(),
         iat: now,
-        exp: now + (expiration_hours as usize * 3600),
+        exp: now + (expiration_hours * 3600),
         iss: issuer.to_string(),
     };
     encode(

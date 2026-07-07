@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { Users, HardDrive, UserCog, Activity, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Users, HardDrive, UserCog, Activity, GitCompare, Zap, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 const sections = [
@@ -15,6 +15,8 @@ const sections = [
     links: [
       { to: '/admin/machine-ips', label: 'IPs de Máquinas', icon: HardDrive },
       { to: '/admin/users', label: 'Usuarios', icon: UserCog, adminOnly: true },
+      { to: '/admin/equivalences', label: 'Equivalencias', icon: GitCompare, adminOnly: true },
+      { to: '/admin/signals', label: 'Señales', icon: Zap, adminOnly: true },
     ],
   },
 ]

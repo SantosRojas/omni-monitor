@@ -11,7 +11,7 @@ pub async fn list(
     State(state): State<AppState>,
     Extension(claims): Extension<JwtClaims>,
 ) -> Result<Json<Vec<UserResponse>>, AppError> {
-    if claims.role != "admin" {
+    if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
     let users = state.pool.list_users().await?;
@@ -23,7 +23,7 @@ pub async fn create(
     Extension(claims): Extension<JwtClaims>,
     Json(req): Json<CreateUserRequest>,
 ) -> Result<Json<UserResponse>, AppError> {
-    if claims.role != "admin" {
+    if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
     let user = state.pool.create_user(&req).await?;
@@ -36,7 +36,7 @@ pub async fn update(
     Path(id): Path<i64>,
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<UserResponse>, AppError> {
-    if claims.role != "admin" {
+    if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
     let user = state.pool
@@ -51,7 +51,7 @@ pub async fn delete_user(
     Extension(claims): Extension<JwtClaims>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if claims.role != "admin" {
+    if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
     let deleted = state.pool.delete_user(id).await?;

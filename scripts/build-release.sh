@@ -9,7 +9,12 @@ echo "  BUILD PRODUCCIÓN - Monitor OMNI"
 echo "========================================"
 echo ""
 
-echo "[1/1] Compilando servidor (release)..."
+echo "[1/2] Compilando frontend..."
+cd frontend && npm ci && npm run build && cd ..
+echo "  -> OK"
+echo ""
+
+echo "[2/2] Compilando servidor (release)..."
 cargo build --features ssr --release
 echo "  -> OK"
 echo ""

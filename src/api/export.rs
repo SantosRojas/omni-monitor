@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use axum::{
     extract::{Path, State},
     body::Body,
@@ -38,14 +36,14 @@ pub async fn export_therapy(
     Ok(ExportResponse { bytes, filename })
 }
 
-fn build_equiv_map(equivalences: &[AttributeEquivalence]) -> HashMap<(i64, i64), &str> {
-    equivalences.iter().map(|e| ((e.signal_id, e.numeric_value), e.display_name.as_str())).collect()
+fn lookup_equivalence<'a>(signal_id: i64, value_str: &str, equivalences: &'a [AttributeEquivalence]) -> Option<&'a str> {
+    let value: f64 = value_str.parse().ok()?;
+    equivalences.iter().find(|e| e.signal_id == signal_id && (e.numeric_value - value).abs() <= (e.numeric_value.abs().max(value.abs()) * 1e-10 + 1e-9)).map(|e| e.display_name.as_str())
 }
 
 fn build_excel(data: &[TelemetryExportRow], equivalences: &[AttributeEquivalence]) -> Result<Vec<u8>, String> {
     let mut workbook = Workbook::new();
     let sheet = workbook.add_worksheet();
-    let eq_map = build_equiv_map(equivalences);
 
     sheet.write_string(0, 0, "ID").map_err(|e| e.to_string())?;
     sheet.write_string(0, 1, "Fecha/Hora").map_err(|e| e.to_string())?;
@@ -70,7 +68,7 @@ fn build_excel(data: &[TelemetryExportRow], equivalences: &[AttributeEquivalence
         }
         let value_str = row.physical_value.as_deref().unwrap_or("");
         let resolved = row.signal_id
-            .and_then(|sid| value_str.parse::<i64>().ok().and_then(|num| eq_map.get(&(sid, num)).copied()))
+            .and_then(|sid| lookup_equivalence(sid, value_str, equivalences))
             .unwrap_or(value_str);
         if let Ok(n) = resolved.parse::<f64>() {
             let _ = sheet.write_number(r, 3, n);

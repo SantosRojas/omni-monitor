@@ -5,7 +5,7 @@ edition = "2024"
 
 [lib]
 name = "monitor"
-crate-type = ["lib", "cdylib"]
+crate-type = ["lib"]
 
 [[bin]]
 name = "monitor-server"

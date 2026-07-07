@@ -10,6 +10,8 @@ import { PatientDashboard } from './pages/PatientDashboard'
 import { TherapyDetail } from './pages/TherapyDetail'
 import { AdminMachineIps } from './pages/AdminMachineIps'
 import { AdminUsers } from './pages/AdminUsers'
+import { AdminEquivalences } from './pages/AdminEquivalences'
+import { AdminSignals } from './pages/AdminSignals'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isLoggedIn } = useAuth()
@@ -50,6 +52,12 @@ function App() {
             </Route>
             <Route path="/admin/users" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<AdminUsers />} />
+            </Route>
+            <Route path="/admin/equivalences" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+              <Route index element={<AdminEquivalences />} />
+            </Route>
+            <Route path="/admin/signals" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+              <Route index element={<AdminSignals />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

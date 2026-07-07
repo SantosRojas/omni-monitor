@@ -11,7 +11,7 @@ pub async fn list(
     State(state): State<AppState>,
     Extension(claims): Extension<JwtClaims>,
 ) -> Result<Json<Vec<MachineIpWithSerial>>, AppError> {
-    if claims.role != "admin" {
+    if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
     let items = state.pool.list_machine_ips().await?;
@@ -23,7 +23,7 @@ pub async fn create(
     Extension(claims): Extension<JwtClaims>,
     Json(req): Json<CreateMachineIpRequest>,
 ) -> Result<Json<MachineIp>, AppError> {
-    if claims.role != "admin" {
+    if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
     let item = state.pool.create_machine_ip(&req).await?;
@@ -36,7 +36,7 @@ pub async fn update(
     Path(id): Path<i64>,
     Json(req): Json<UpdateMachineIpRequest>,
 ) -> Result<Json<MachineIp>, AppError> {
-    if claims.role != "admin" {
+    if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
     let item = state.pool
@@ -50,7 +50,7 @@ pub async fn list_machines(
     State(state): State<AppState>,
     Extension(claims): Extension<JwtClaims>,
 ) -> Result<Json<Vec<Machine>>, AppError> {
-    if claims.role != "admin" {
+    if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
     let machines = state.pool.list_machines().await?;
@@ -62,7 +62,7 @@ pub async fn delete_ip(
     Extension(claims): Extension<JwtClaims>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if claims.role != "admin" {
+    if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
     let deleted = state.pool.delete_machine_ip(id).await?;

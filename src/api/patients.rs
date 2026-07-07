@@ -49,8 +49,12 @@ pub async fn get_history(
 ) -> Result<Json<PaginatedResponse<TelemetryReading>>, AppError> {
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(50).clamp(1, 500);
+    let signal_ids: Option<Vec<i64>> = params
+        .signal_ids
+        .as_deref()
+        .map(|s| s.split(',').filter_map(|n| n.trim().parse().ok()).collect());
     let result = state.pool
-        .list_telemetry(id, page, per_page, None, None, None)
+        .list_telemetry(id, page, per_page, signal_ids.as_deref(), params.from.as_deref(), params.to.as_deref())
         .await?;
     Ok(Json(result))
 }

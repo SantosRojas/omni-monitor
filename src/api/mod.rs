@@ -1,8 +1,10 @@
 pub mod auth;
 pub mod dashboard;
+pub mod equivalences;
 pub mod export;
 pub mod machine_ips;
 pub mod patients;
+pub mod signals;
 pub mod users;
 
 use axum::{
@@ -10,7 +12,7 @@ use axum::{
     http::StatusCode,
     middleware,
     response::{IntoResponse, Response},
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use crate::config::MonitorConfig;
@@ -42,7 +44,7 @@ impl IntoResponse for AppError {
             Self::InactiveUser => (StatusCode::FORBIDDEN, "User is inactive".to_string()),
             Self::Database(e) => {
                 tracing::error!(error = %e, "Database error");
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e))
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
             }
             Self::Export(e) => {
                 tracing::error!(error = %e, "Export error");
@@ -98,6 +100,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/machines", get(machine_ips::list_machines))
         .route("/admin/machine-ips", get(machine_ips::list).post(machine_ips::create))
         .route("/admin/machine-ips/{id}", put(machine_ips::update).delete(machine_ips::delete_ip))
+        .route("/admin/equivalences", get(equivalences::list).post(equivalences::create).put(equivalences::update))
+        .route("/admin/equivalences/{signal_id}/{numeric_value}", delete(equivalences::delete))
+        .route("/admin/signals", get(signals::list))
+        .route("/admin/signals/{id}", put(signals::update))
         .route("/users", get(users::list).post(users::create))
         .route("/users/{id}", put(users::update).delete(users::delete_user))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))

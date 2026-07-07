@@ -96,6 +96,30 @@ export interface Signal {
   unit?: string
 }
 
+export interface Equivalence {
+  signal_id: number
+  internal_name: string
+  numeric_value: number
+  display_name: string
+}
+
+export interface CreateEquivalenceRequest {
+  internal_name: string
+  numeric_value: number
+  display_name: string
+}
+
+export interface UpdateEquivalenceRequest {
+  signal_id: number
+  numeric_value: number
+  display_name: string
+}
+
+export interface UpdateSignalRequest {
+  display_name?: string
+  unit?: string
+}
+
 export interface TherapyComment {
   id: number
   therapy_id: number
