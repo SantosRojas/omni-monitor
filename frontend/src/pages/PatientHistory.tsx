@@ -9,10 +9,10 @@ import {
   createColumnHelper,
 } from '@tanstack/react-table'
 import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import type { TelemetryReading } from '../types'
 import * as patientsApi from '../api/patients'
-import { Spinner, ColumnFilter } from '../components/ui'
+import { Spinner, ColumnFilter, Button } from '../components/ui'
 import { formatDate } from '../utils/date'
 
 const helper = createColumnHelper<TelemetryReading>()
@@ -66,9 +66,9 @@ export function PatientHistory() {
 
   return (
     <div>
-      <button onClick={() => navigate(`/patients/${id}`)} className="flex items-center gap-1.5 text-sm text-(--text-secondary) hover:text-(--text-primary) mb-4 cursor-pointer">
-        <ArrowLeft className="w-4 h-4" /> Volver al paciente
-      </button>
+      <Button variant="ghost" size="sm" onClick={() => navigate(`/patients/${id}`)} icon={<ArrowLeft className="w-4 h-4" />}>
+        Volver al paciente
+      </Button>
 
       <h2 className="text-lg md:text-xl font-bold mb-5 text-(--text-primary)">Historial de Telemetría</h2>
 
@@ -110,15 +110,13 @@ export function PatientHistory() {
       )}
 
       <div className="flex items-center justify-center gap-1 sm:gap-2 pt-4">
-        <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-          className="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) disabled:opacity-30 cursor-pointer disabled:cursor-default">
-          <ChevronLeft className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Anterior</span>
-        </button>
+        <Button variant="secondary" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>
+          Anterior
+        </Button>
         <span className="text-xs sm:text-sm text-(--text-muted)">{page} / {Math.ceil(total / perPage)}</span>
-        <button onClick={() => setPage(p => p + 1)} disabled={page >= Math.ceil(total / perPage)}
-          className="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) disabled:opacity-30 cursor-pointer disabled:cursor-default">
-          <span className="hidden sm:inline">Siguiente</span> <ChevronRight className="w-3.5 h-3.5" />
-        </button>
+        <Button variant="secondary" size="sm" onClick={() => setPage(p => p + 1)} disabled={page >= Math.ceil(total / perPage)}>
+          Siguiente
+        </Button>
       </div>
     </div>
   )

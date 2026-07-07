@@ -7,10 +7,10 @@ import {
   createColumnHelper,
 } from '@tanstack/react-table'
 import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { MachineIpWithSerial, Machine } from '../types'
 import * as machinesApi from '../api/machines'
-import { Spinner, Modal, Badge, Select, ColumnFilter } from '../components/ui'
+import { Spinner, Modal, Badge, Select, ColumnFilter, Button, Input, Label, SearchInput } from '../components/ui'
 
 const helper = createColumnHelper<MachineIpWithSerial>()
 
@@ -116,12 +116,12 @@ export function AdminMachineIps() {
       header: '',
       cell: ({ row }) => (
         <div className="flex gap-1">
-          <button onClick={() => openEdit(row.original)} className="p-1.5 rounded-sm hover:bg-[var(--surface-hover)] cursor-pointer text-(--text-secondary)">
+          <Button variant="icon" size="sm" onClick={() => openEdit(row.original)}>
             <Pencil className="w-4 h-4" />
-          </button>
-          <button onClick={() => handleDelete(row.original.id)} className="p-1.5 rounded-sm hover:bg-[var(--surface-hover)] cursor-pointer text-[var(--danger)]">
+          </Button>
+          <Button variant="icon" size="sm" onClick={() => handleDelete(row.original.id)} className="!text-[var(--danger)]">
             <Trash2 className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       ),
     }),
@@ -144,19 +144,13 @@ export function AdminMachineIps() {
     <div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
         <h2 className="text-lg md:text-xl font-bold text-(--text-primary)">IPs de Máquinas</h2>
-        <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm bg-[var(--accent)] text-white hover:opacity-90 cursor-pointer">
-          <Plus className="w-4 h-4" /> Nueva IP
-        </button>
+        <Button variant="primary" size="sm" icon={<Plus className="w-4 h-4" />} onClick={openCreate}>
+          Nueva IP
+        </Button>
       </div>
 
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-(--text-muted)" />
-        <input
-          value={globalFilter ?? ''}
-          onChange={e => setGlobalFilter(e.target.value)}
-          placeholder="Buscar en toda la tabla..."
-          className="w-full pl-9 pr-3 py-2 text-sm border border-(--glass-border) rounded-sm bg-(--surface-btn) text-(--text-primary) outline-none focus:border-[var(--accent)]"
-        />
+      <div className="mb-4">
+        <SearchInput value={globalFilter ?? ''} onChange={e => setGlobalFilter(e.target.value)} placeholder="Buscar en toda la tabla..." />
       </div>
 
       {loading ? <Spinner message="Cargando..." /> : (
@@ -199,7 +193,7 @@ export function AdminMachineIps() {
         <div className="flex flex-col gap-4">
           {!editing && (
             <div>
-              <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Máquina</label>
+              <Label>Máquina</Label>
               <Select
                 options={machines.map(m => ({ value: m.id, label: m.serial_number }))}
                 value={formMachineId}
@@ -209,35 +203,30 @@ export function AdminMachineIps() {
             </div>
           )}
           <div>
-            <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Dirección IP</label>
-            <input value={formIp} onChange={e => setFormIp(e.target.value)}
-              className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none focus:border-[var(--accent)]" />
+            <Label>Dirección IP</Label>
+            <Input value={formIp} onChange={e => setFormIp(e.target.value)} />
           </div>
           <div>
-            <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Puerto</label>
-            <input type="number" value={formPort} onChange={e => setFormPort(Number(e.target.value))}
-              className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none focus:border-[var(--accent)]" />
+            <Label>Puerto</Label>
+            <Input type="number" value={formPort} onChange={e => setFormPort(Number(e.target.value))} />
           </div>
           <div className="flex items-center gap-3">
-            <label className="text-xs font-medium text-(--text-secondary) cursor-pointer" onClick={() => setFormIsActive(!formIsActive)}>Activo</label>
+            <Label className="!mb-0 cursor-pointer" onClick={() => setFormIsActive(!formIsActive)}>Activo</Label>
             <button
               type="button"
               onClick={() => setFormIsActive(!formIsActive)}
-              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${formIsActive ? 'bg-[var(--accent)]' : 'bg-(--surface-btn-hover)'}`}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${formIsActive ? 'bg-(--accent)' : 'bg-(--surface-btn-hover)'}`}
             >
               <span className={`inline-block h-4 w-4 translate-y-0 transform rounded-full bg-white shadow-sm ring-0 transition-transform duration-200 ${formIsActive ? 'translate-x-4' : 'translate-x-0'}`} />
             </button>
           </div>
           <div>
-            <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Etiqueta</label>
-            <input value={formLabel} onChange={e => setFormLabel(e.target.value)}
-              className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none focus:border-[var(--accent)]" />
+            <Label>Etiqueta</Label>
+            <Input value={formLabel} onChange={e => setFormLabel(e.target.value)} />
           </div>
           <div className="flex justify-end gap-2 mt-2">
-            <button onClick={() => setModalOpen(false)}
-              className="px-4 py-2 text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) cursor-pointer">Cancelar</button>
-            <button onClick={handleSave}
-              className="px-4 py-2 text-sm rounded-sm bg-[var(--accent)] text-white hover:opacity-90 cursor-pointer">Guardar</button>
+            <Button variant="secondary" size="md" onClick={() => setModalOpen(false)}>Cancelar</Button>
+            <Button variant="primary" size="md" onClick={handleSave}>Guardar</Button>
           </div>
         </div>
       </Modal>

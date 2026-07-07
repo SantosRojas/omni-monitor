@@ -5,7 +5,6 @@ import {
   ChevronsLeft, ChevronsRight,
   Sun, Moon,
   LogOut,
-  Menu, X,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
@@ -22,7 +21,6 @@ const adminNavItems = [
 ]
 
 export function Sidebar() {
-  const [open, setOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true')
   const { isAdmin, user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
@@ -64,11 +62,11 @@ export function Sidebar() {
           className="flex items-center gap-3 text-lg font-bold text-(--text-primary) no-underline"
           title={collapsed ? 'Monitor OMNI' : undefined}
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)] shadow-sm">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-(--accent) shadow-sm">
             <Activity className="h-4 w-4 text-white" />
           </div>
           {!collapsed && (
-            <span className="font-semibold tracking-tight">Monitor <span className="text-[var(--accent)]">OMNI</span></span>
+            <span className="font-semibold tracking-tight">Monitor <span className="text-(--accent)">OMNI</span></span>
           )}
         </NavLink>
       </div>
@@ -101,7 +99,6 @@ export function Sidebar() {
                 key={item.to}
                 to={item.to}
                 className={linkClass(item.to)}
-                onClick={() => setOpen(false)}
                 title={collapsed ? item.label : undefined}
               >
                 <item.icon className="h-4 w-4 shrink-0" />
@@ -114,7 +111,7 @@ export function Sidebar() {
 
       <div className="border-t border-(--glass-border) p-3">
         <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3 px-3'} mb-3`}>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/20 text-sm font-medium text-[var(--accent)] ring-2 ring-[var(--accent)]/20">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-(--accent)/20 text-sm font-medium text-(--accent) ring-2 ring-[var(--accent)]/20">
             {user?.full_name?.charAt(0)?.toUpperCase() || user?.username?.charAt(0)?.toUpperCase() || 'U'}
           </div>
           {!collapsed && (
@@ -156,7 +153,7 @@ export function Sidebar() {
 
         <button
           onClick={handleLogout}
-          className={`flex items-center rounded-lg px-3 py-2 text-sm text-(--text-secondary) hover:text-[var(--danger)] hover:bg-(--surface-hover) transition-colors no-underline w-full ${collapsed ? 'justify-center px-0' : 'gap-3'}`}
+          className={`flex items-center rounded-lg px-3 py-2 text-sm text-(--text-secondary) hover:text-(--danger) hover:bg-(--surface-hover) transition-colors no-underline w-full ${collapsed ? 'justify-center px-0' : 'gap-3'}`}
           title={collapsed ? 'Cerrar sesión' : undefined}
         >
           <LogOut className="h-4 w-4 shrink-0" />
@@ -167,36 +164,18 @@ export function Sidebar() {
   )
 
   return (
-    <>
+    <aside
+      className={`relative hidden shrink-0 border-r border-(--glass-border) bg-(--sidebar-bg) backdrop-blur-[12px] transition-all duration-200 md:block ${collapsed ? 'w-16' : 'w-[var(--sidebar-width)]'}`}
+    >
+      {sidebarContent}
+
       <button
-        className="fixed left-4 top-4 z-50 flex h-9 w-9 items-center justify-center rounded-md border border-(--glass-border) bg-(--sidebar-bg) backdrop-blur-md md:hidden"
-        onClick={() => setOpen(!open)}
+        onClick={toggleCollapsed}
+        className="absolute -right-3 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-(--glass-border) bg-(--sidebar-bg) text-(--text-muted) shadow-sm hover:text-(--text-primary)"
+        title={collapsed ? 'Expandir' : 'Colapsar'}
       >
-        {open ? <X className="h-4 w-4 text-(--text-primary)" /> : <Menu className="h-4 w-4 text-(--text-primary)" />}
+        {collapsed ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
       </button>
-
-      <aside
-        className={`relative hidden shrink-0 border-r border-(--glass-border) bg-(--sidebar-bg) backdrop-blur-[12px] transition-all duration-200 md:block ${collapsed ? 'w-16' : 'w-[var(--sidebar-width)]'}`}
-      >
-        {sidebarContent}
-
-        <button
-          onClick={toggleCollapsed}
-          className="absolute -right-3 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-(--glass-border) bg-(--sidebar-bg) text-(--text-muted) shadow-sm hover:text-(--text-primary)"
-          title={collapsed ? 'Expandir' : 'Colapsar'}
-        >
-          {collapsed ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
-        </button>
-      </aside>
-
-      {open && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <aside className="fixed left-0 top-0 z-50 h-full w-72 border-r border-(--glass-border) bg-(--sidebar-bg-mobile) backdrop-blur-[12px] shadow-xl animate-slide-up">
-            {sidebarContent}
-          </aside>
-        </div>
-      )}
-    </>
+    </aside>
   )
 }

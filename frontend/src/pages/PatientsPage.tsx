@@ -10,11 +10,9 @@ import {
   type SortingState,
   type ColumnFiltersState,
 } from '@tanstack/react-table'
-import { Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Patient } from '../types'
 import * as patientsApi from '../api/patients'
-import { Spinner } from '../components/ui/Spinner'
-import { Badge } from '../components/ui/Badge'
+import { Spinner, Badge, SearchInput, Pagination, Button } from '../components/ui'
 import { formatDateShort } from '../utils/date'
 
 const columnHelper = createColumnHelper<Patient>()
@@ -94,13 +92,11 @@ export function PatientsPage() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-5">
-        <div className="relative w-full sm:max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-(--text-muted)" />
-          <input
-            className="w-full pl-9 pr-3.5 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none focus:border-[var(--accent)] transition-colors"
-            placeholder="Buscar paciente..."
+        <div className="w-full sm:max-w-md">
+          <SearchInput
             value={search}
             onChange={e => { setSearch(e.target.value); setPagination(p => ({ ...p, pageIndex: 0 })) }}
+            placeholder="Buscar paciente..."
           />
         </div>
       </div>
@@ -149,23 +145,15 @@ export function PatientsPage() {
       )}
 
       <div className="flex items-center justify-center gap-1 sm:gap-2 pt-4">
-        <button
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-          className="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) disabled:opacity-30 cursor-pointer disabled:cursor-default transition-colors"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Anterior</span>
-        </button>
+        <Button variant="secondary" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+          Anterior
+        </Button>
         <span className="text-xs sm:text-sm text-(--text-muted) px-1">
           {pagination.pageIndex + 1} / {table.getPageCount()}
         </span>
-        <button
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-          className="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) disabled:opacity-30 cursor-pointer disabled:cursor-default transition-colors"
-        >
-          <span className="hidden sm:inline">Siguiente</span> <ChevronRight className="w-3.5 h-3.5" />
-        </button>
+        <Button variant="secondary" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+          Siguiente
+        </Button>
       </div>
     </div>
   )

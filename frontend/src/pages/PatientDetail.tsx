@@ -8,11 +8,11 @@ import {
   createColumnHelper,
 } from '@tanstack/react-table'
 import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
-import { ArrowLeft, FileDown, LineChart, Clock, Search } from 'lucide-react'
+import { ArrowLeft, FileDown, LineChart, Clock } from 'lucide-react'
 import type { Patient, TherapyWithMachine } from '../types'
 import * as patientsApi from '../api/patients'
 import { triggerPatientExport } from '../api/export'
-import { Spinner, Badge, ColumnFilter } from '../components/ui'
+import { Spinner, Badge, ColumnFilter, Button, SearchInput } from '../components/ui'
 import { formatDate, formatDateShort } from '../utils/date'
 
 const therapyHelper = createColumnHelper<TherapyWithMachine>()
@@ -83,9 +83,9 @@ export function PatientDetail() {
 
   return (
     <div>
-      <button onClick={() => navigate('/patients')} className="flex items-center gap-1.5 text-sm text-(--text-secondary) hover:text-(--text-primary) mb-4 cursor-pointer">
-        <ArrowLeft className="w-4 h-4" /> Volver a pacientes
-      </button>
+      <Button variant="ghost" size="sm" onClick={() => navigate('/patients')} icon={<ArrowLeft className="w-4 h-4" />}>
+        Volver a pacientes
+      </Button>
 
       <div className="glass p-4 md:p-5 mb-5">
         <div className="flex flex-col sm:flex-row items-start justify-between gap-3 mb-3">
@@ -94,15 +94,15 @@ export function PatientDetail() {
             {/* <p className="text-sm text-(--text-muted) mt-1">ID: {patient.id}</p> */}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link to={`/patients/${patient.id}/dashboard`} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) no-underline">
-              <LineChart className="w-4 h-4" /> Dashboard
+            <Link to={`/patients/${patient.id}/dashboard`} className="no-underline">
+              <Button variant="secondary" size="sm" icon={<LineChart className="w-4 h-4" />}>Dashboard</Button>
             </Link>
-            <Link to={`/patients/${patient.id}/history`} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) no-underline">
-              <Clock className="w-4 h-4" /> Historial
+            <Link to={`/patients/${patient.id}/history`} className="no-underline">
+              <Button variant="secondary" size="sm" icon={<Clock className="w-4 h-4" />}>Historial</Button>
             </Link>
-            <button onClick={() => triggerPatientExport(patient.id).catch(console.error)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) cursor-pointer">
-              <FileDown className="w-4 h-4" /> Exportar
-            </button>
+            <Button variant="secondary" size="sm" icon={<FileDown className="w-4 h-4" />} onClick={() => triggerPatientExport(patient.id).catch(console.error)}>
+              Exportar
+            </Button>
           </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 text-xs md:text-sm">
@@ -115,14 +115,8 @@ export function PatientDetail() {
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-3">
         <h3 className="text-base md:text-lg font-semibold text-(--text-primary)">Terapias</h3>
-        <div className="relative w-full sm:w-64 sm:ml-auto">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-(--text-muted)" />
-          <input
-            value={globalFilter ?? ''}
-            onChange={e => setGlobalFilter(e.target.value)}
-            placeholder="Buscar en toda la tabla..."
-            className="w-full pl-9 pr-3 py-2 text-sm border border-(--glass-border) rounded-sm bg-(--surface-btn) text-(--text-primary) outline-none focus:border-[var(--accent)]"
-          />
+        <div className="w-full sm:w-64 sm:ml-auto">
+          <SearchInput value={globalFilter ?? ''} onChange={e => setGlobalFilter(e.target.value)} placeholder="Buscar en toda la tabla..." />
         </div>
       </div>
       {therapies.length === 0 ? (

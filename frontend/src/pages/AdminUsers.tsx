@@ -7,10 +7,10 @@ import {
   createColumnHelper,
 } from '@tanstack/react-table'
 import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { UserResponse } from '../types'
 import * as usersApi from '../api/users'
-import { Spinner, Modal, Badge, Select, ColumnFilter } from '../components/ui'
+import { Spinner, Modal, Badge, Select, ColumnFilter, Button, Input, Label, SearchInput } from '../components/ui'
 
 const helper = createColumnHelper<UserResponse>()
 
@@ -133,12 +133,12 @@ export function AdminUsers() {
       header: '',
       cell: ({ row }) => (
         <div className="flex gap-1">
-          <button onClick={() => openEdit(row.original)} className="p-1.5 rounded-sm hover:bg-[var(--surface-hover)] cursor-pointer text-(--text-secondary)">
+          <Button variant="icon" size="sm" onClick={() => openEdit(row.original)}>
             <Pencil className="w-4 h-4" />
-          </button>
-          <button onClick={() => handleDelete(row.original.id)} className="p-1.5 rounded-sm hover:bg-[var(--surface-hover)] cursor-pointer text-[var(--danger)]">
+          </Button>
+          <Button variant="icon" size="sm" onClick={() => handleDelete(row.original.id)} className="!text-[var(--danger)]">
             <Trash2 className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       ),
     }),
@@ -161,19 +161,13 @@ export function AdminUsers() {
     <div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
         <h2 className="text-lg md:text-xl font-bold text-(--text-primary)">Usuarios</h2>
-        <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm bg-[var(--accent)] text-white hover:opacity-90 cursor-pointer">
-          <Plus className="w-4 h-4" /> Nuevo Usuario
-        </button>
+        <Button variant="primary" size="sm" icon={<Plus className="w-4 h-4" />} onClick={openCreate}>
+          Nuevo Usuario
+        </Button>
       </div>
 
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-(--text-muted)" />
-        <input
-          value={globalFilter ?? ''}
-          onChange={e => setGlobalFilter(e.target.value)}
-          placeholder="Buscar en toda la tabla..."
-          className="w-full pl-9 pr-3 py-2 text-sm border border-(--glass-border) rounded-sm bg-(--surface-btn) text-(--text-primary) outline-none focus:border-[var(--accent)]"
-        />
+      <div className="mb-4">
+        <SearchInput value={globalFilter ?? ''} onChange={e => setGlobalFilter(e.target.value)} placeholder="Buscar en toda la tabla..." />
       </div>
 
       {loading ? <Spinner message="Cargando usuarios..." /> : (
@@ -215,27 +209,23 @@ export function AdminUsers() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar Usuario' : 'Nuevo Usuario'}>
         <div className="flex flex-col gap-4">
           <div>
-            <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Usuario</label>
-            <input value={formUsername} onChange={e => setFormUsername(e.target.value)} disabled={!!editing}
-              className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none focus:border-[var(--accent)]" />
+            <Label>Usuario</Label>
+            <Input value={formUsername} onChange={e => setFormUsername(e.target.value)} disabled={!!editing} />
           </div>
           <div>
-            <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Contraseña {editing ? '(dejar vacío para no cambiar)' : ''}</label>
-            <input type="password" value={formPassword} onChange={e => setFormPassword(e.target.value)}
-              className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none focus:border-[var(--accent)]" />
+            <Label>Contraseña {editing ? '(dejar vacío para no cambiar)' : ''}</Label>
+            <Input type="password" value={formPassword} onChange={e => setFormPassword(e.target.value)} />
           </div>
           <div>
-            <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Nombre Completo</label>
-            <input value={formFullName} onChange={e => setFormFullName(e.target.value)}
-              className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none focus:border-[var(--accent)]" />
+            <Label>Nombre Completo</Label>
+            <Input value={formFullName} onChange={e => setFormFullName(e.target.value)} />
           </div>
           <div>
-            <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Email</label>
-            <input type="email" value={formEmail} onChange={e => setFormEmail(e.target.value)}
-              className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none focus:border-[var(--accent)]" />
+            <Label>Email</Label>
+            <Input type="email" value={formEmail} onChange={e => setFormEmail(e.target.value)} />
           </div>
           <div>
-            <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Rol</label>
+            <Label>Rol</Label>
             <Select
               options={[
                 { value: 'admin', label: 'Admin' },
@@ -248,10 +238,8 @@ export function AdminUsers() {
             />
           </div>
           <div className="flex justify-end gap-2 mt-2">
-            <button onClick={() => setModalOpen(false)}
-              className="px-4 py-2 text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) cursor-pointer">Cancelar</button>
-            <button onClick={handleSave}
-              className="px-4 py-2 text-sm rounded-sm bg-[var(--accent)] text-white hover:opacity-90 cursor-pointer">Guardar</button>
+            <Button variant="secondary" size="md" onClick={() => setModalOpen(false)}>Cancelar</Button>
+            <Button variant="primary" size="md" onClick={handleSave}>Guardar</Button>
           </div>
         </div>
       </Modal>

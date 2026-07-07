@@ -30,12 +30,12 @@ export function MobileNav() {
             end
             className={`relative flex flex-col items-center gap-0.5 min-w-0 px-3 py-1.5 rounded-sm no-underline transition-all duration-200
               ${active
-                ? '!text-[var(--accent)]'
+                ? '!text-(--accent)'
                 : 'text-(--text-muted) hover:text-(--text-secondary)'
               }`}
           >
             {active && (
-              <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-[var(--accent)]" />
+              <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-(--accent)" />
             )}
             <l.icon className={`w-5 h-5 transition-transform duration-200 ${active ? 'scale-110' : ''}`} />
             <span className="text-[10px] font-medium leading-tight truncate max-w-full">

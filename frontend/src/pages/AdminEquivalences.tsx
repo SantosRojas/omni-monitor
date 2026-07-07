@@ -8,10 +8,10 @@ import {
   createColumnHelper,
 } from '@tanstack/react-table'
 import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { Equivalence } from '../types'
 import * as equivalencesApi from '../api/equivalences'
-import { Spinner, Modal, ColumnFilter } from '../components/ui'
+import { Spinner, Modal, ColumnFilter, Button, Input, Label, SearchInput, Pagination } from '../components/ui'
 
 const helper = createColumnHelper<Equivalence>()
 
@@ -111,12 +111,12 @@ export function AdminEquivalences() {
       header: '',
       cell: ({ row }) => (
         <div className="flex gap-1">
-          <button onClick={() => openEdit(row.original)} className="p-1.5 rounded-sm hover:bg-[var(--surface-hover)] cursor-pointer text-(--text-secondary)">
+          <Button variant="icon" size="sm" onClick={() => openEdit(row.original)}>
             <Pencil className="w-4 h-4" />
-          </button>
-          <button onClick={() => openDelete(row.original)} className="p-1.5 rounded-sm hover:bg-[var(--surface-hover)] cursor-pointer text-[var(--danger)]">
+          </Button>
+          <Button variant="icon" size="sm" onClick={() => openDelete(row.original)} className="!text-[var(--danger)]">
             <Trash2 className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       ),
     }),
@@ -141,19 +141,13 @@ export function AdminEquivalences() {
     <div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
         <h2 className="text-lg md:text-xl font-bold text-(--text-primary)">Equivalencias</h2>
-        <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm bg-[var(--accent)] text-white hover:opacity-90 cursor-pointer">
-          <Plus className="w-4 h-4" /> Nueva Equivalencia
-        </button>
+        <Button variant="primary" size="sm" icon={<Plus className="w-4 h-4" />} onClick={openCreate}>
+          Nueva Equivalencia
+        </Button>
       </div>
 
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-(--text-muted)" />
-        <input
-          value={globalFilter ?? ''}
-          onChange={e => setGlobalFilter(e.target.value)}
-          placeholder="Buscar en toda la tabla..."
-          className="w-full pl-9 pr-3 py-2 text-sm border border-(--glass-border) rounded-sm bg-(--surface-btn) text-(--text-primary) outline-none focus:border-[var(--accent)]"
-        />
+      <div className="mb-4">
+        <SearchInput value={globalFilter ?? ''} onChange={e => setGlobalFilter(e.target.value)} placeholder="Buscar en toda la tabla..." />
       </div>
 
       {loading ? <Spinner message="Cargando equivalencias..." /> : (
@@ -189,19 +183,7 @@ export function AdminEquivalences() {
             </tbody>
           </table>
           {data.length === 0 && !error && <div className="text-center py-10 text-(--text-muted) text-sm">No hay equivalencias</div>}
-          {data.length > 0 && (
-            <div className="flex items-center justify-center gap-1 sm:gap-2 pt-4 pb-2">
-              <button onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}
-                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) disabled:opacity-30 cursor-pointer disabled:cursor-default">
-                <ChevronLeft className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Anterior</span>
-              </button>
-              <span className="text-xs sm:text-sm text-(--text-muted)">{table.getState().pagination.pageIndex + 1} / {table.getPageCount()}</span>
-              <button onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}
-                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) disabled:opacity-30 cursor-pointer disabled:cursor-default">
-                <span className="hidden sm:inline">Siguiente</span> <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
+          {data.length > 0 && <Pagination table={table} />}
         </div>
       )}
 
@@ -210,25 +192,20 @@ export function AdminEquivalences() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar Equivalencia' : 'Nueva Equivalencia'}>
         <div className="flex flex-col gap-4">
           <div>
-            <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Nombre Interno (internal_name)</label>
-            <input value={formInternalName} onChange={e => setFormInternalName(e.target.value)} disabled={!!editing}
-              className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none focus:border-[var(--accent)]" />
+            <Label>Nombre Interno (internal_name)</Label>
+            <Input value={formInternalName} onChange={e => setFormInternalName(e.target.value)} disabled={!!editing} />
           </div>
           <div>
-            <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Valor Numérico</label>
-            <input type="number" value={formNumericValue} onChange={e => setFormNumericValue(e.target.value)} disabled={!!editing}
-              className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none focus:border-[var(--accent)]" />
+            <Label>Valor Numérico</Label>
+            <Input type="number" value={formNumericValue} onChange={e => setFormNumericValue(e.target.value)} disabled={!!editing} />
           </div>
           <div>
-            <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Nombre Display</label>
-            <input value={formDisplayName} onChange={e => setFormDisplayName(e.target.value)}
-              className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none focus:border-[var(--accent)]" />
+            <Label>Nombre Display</Label>
+            <Input value={formDisplayName} onChange={e => setFormDisplayName(e.target.value)} />
           </div>
           <div className="flex justify-end gap-2 mt-2">
-            <button onClick={() => setModalOpen(false)}
-              className="px-4 py-2 text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) cursor-pointer">Cancelar</button>
-            <button onClick={handleSave}
-              className="px-4 py-2 text-sm rounded-sm bg-[var(--accent)] text-white hover:opacity-90 cursor-pointer">Guardar</button>
+            <Button variant="secondary" size="md" onClick={() => setModalOpen(false)}>Cancelar</Button>
+            <Button variant="primary" size="md" onClick={handleSave}>Guardar</Button>
           </div>
         </div>
       </Modal>
@@ -239,15 +216,12 @@ export function AdminEquivalences() {
             ¿Eliminar "{deleting?.display_name}" ({deleting?.internal_name} = {deleting?.numeric_value})?
           </p>
           <div>
-            <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Motivo (opcional)</label>
-            <input value={deleteReason} onChange={e => setDeleteReason(e.target.value)}
-              className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none focus:border-[var(--accent)]" />
+            <Label>Motivo (opcional)</Label>
+            <Input value={deleteReason} onChange={e => setDeleteReason(e.target.value)} />
           </div>
           <div className="flex justify-end gap-2 mt-2">
-            <button onClick={() => setDeleteModalOpen(false)}
-              className="px-4 py-2 text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) cursor-pointer">Cancelar</button>
-            <button onClick={handleDelete}
-              className="px-4 py-2 text-sm rounded-sm bg-[var(--danger)] text-white hover:opacity-90 cursor-pointer">Eliminar</button>
+            <Button variant="secondary" size="md" onClick={() => setDeleteModalOpen(false)}>Cancelar</Button>
+            <Button variant="danger" size="md" onClick={handleDelete}>Eliminar</Button>
           </div>
         </div>
       </Modal>
