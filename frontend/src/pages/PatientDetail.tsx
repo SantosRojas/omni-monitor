@@ -4,9 +4,10 @@ import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
+  getSortedRowModel,
   createColumnHelper,
 } from '@tanstack/react-table'
-import type { ColumnFiltersState } from '@tanstack/react-table'
+import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
 import { ArrowLeft, FileDown, LineChart, Clock, Search } from 'lucide-react'
 import type { Patient, TherapyWithMachine } from '../types'
 import * as patientsApi from '../api/patients'
@@ -17,7 +18,7 @@ import { formatDate, formatDateShort } from '../utils/date'
 const therapyHelper = createColumnHelper<TherapyWithMachine>()
 
 const hideSm = (id: string) =>
-  ['id', 'ended_at', 'software_version'].includes(id) ? 'hidden md:table-cell' : ''
+  ['ended_at', 'software_version'].includes(id) ? 'hidden md:table-cell' : ''
 
 export function PatientDetail() {
   const { id } = useParams<{ id: string }>()
@@ -25,6 +26,7 @@ export function PatientDetail() {
   const [patient, setPatient] = useState<Patient | null>(null)
   const [therapies, setTherapies] = useState<TherapyWithMachine[]>([])
   const [loading, setLoading] = useState(true)
+  const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
 
@@ -42,7 +44,6 @@ export function PatientDetail() {
   }, [id])
 
   const therapyColumns = useMemo(() => [
-    therapyHelper.accessor('id', { header: 'ID' }),
     therapyHelper.accessor('started_at', {
       header: 'Inicio',
       cell: i => formatDate(i.getValue()),
@@ -69,10 +70,12 @@ export function PatientDetail() {
     columns: therapyColumns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: 'includesString',
-    state: { columnFilters, globalFilter },
+    state: { sorting, columnFilters, globalFilter },
   })
 
   if (loading) return <Spinner message="Cargando paciente..." />
@@ -131,9 +134,12 @@ export function PatientDetail() {
               {therapyTable.getHeaderGroups().map(hg => (
                 <tr key={hg.id}>
                   {hg.headers.map(h => (
-                    <th key={h.id} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-(--border-subtle) ${hideSm(h.id)}`}>
+                    <th key={h.id} onClick={h.column.getToggleSortingHandler()} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-(--border-subtle) cursor-pointer select-none ${hideSm(h.id)}`}>
                       <div className="flex flex-col">
-                        {h.column.columnDef.header as string}
+                        <div className="flex items-center gap-1">
+                          {h.column.columnDef.header as string}
+                          {h.column.getIsSorted() && <span className="text-[10px]">{h.column.getIsSorted() === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
                         {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
                       </div>
                     </th>

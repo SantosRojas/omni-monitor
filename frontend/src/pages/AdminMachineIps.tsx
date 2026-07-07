@@ -3,9 +3,10 @@ import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
+  getSortedRowModel,
   createColumnHelper,
 } from '@tanstack/react-table'
-import type { ColumnFiltersState } from '@tanstack/react-table'
+import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
 import { Plus, Pencil, Trash2, Search } from 'lucide-react'
 import type { MachineIpWithSerial, Machine } from '../types'
 import * as machinesApi from '../api/machines'
@@ -14,7 +15,7 @@ import { Spinner, Modal, Badge, Select, ColumnFilter } from '../components/ui'
 const helper = createColumnHelper<MachineIpWithSerial>()
 
 const hideSm = (id: string) =>
-  ['id', 'port', 'label'].includes(id) ? 'hidden md:table-cell' : ''
+  ['port', 'label'].includes(id) ? 'hidden md:table-cell' : ''
 
 export function AdminMachineIps() {
   const [data, setData] = useState<MachineIpWithSerial[]>([])
@@ -27,6 +28,8 @@ export function AdminMachineIps() {
   const [formIp, setFormIp] = useState('')
   const [formPort, setFormPort] = useState(9001)
   const [formLabel, setFormLabel] = useState('')
+  const [formIsActive, setFormIsActive] = useState(true)
+  const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
 
@@ -50,6 +53,7 @@ export function AdminMachineIps() {
     setFormIp('')
     setFormPort(9001)
     setFormLabel('')
+    setFormIsActive(true)
     setModalOpen(true)
   }
 
@@ -59,6 +63,7 @@ export function AdminMachineIps() {
     setFormIp(item.ip_address)
     setFormPort(item.port ?? 9001)
     setFormLabel(item.label ?? '')
+    setFormIsActive(item.is_active)
     setModalOpen(true)
   }
 
@@ -69,6 +74,7 @@ export function AdminMachineIps() {
           ip_address: formIp,
           port: formPort,
           label: formLabel,
+          is_active: formIsActive,
         })
       } else {
         await machinesApi.createMachineIp({
@@ -76,6 +82,7 @@ export function AdminMachineIps() {
           ip_address: formIp,
           port: formPort,
           label: formLabel,
+          is_active: formIsActive,
         })
       }
       setModalOpen(false)
@@ -96,7 +103,6 @@ export function AdminMachineIps() {
   }
 
   const columns = useMemo(() => [
-    helper.accessor('id', { header: 'ID' }),
     helper.accessor('serial_number', { header: 'Serial' }),
     helper.accessor('ip_address', { header: 'Dirección IP' }),
     helper.accessor('port', { header: 'Puerto' }),
@@ -126,10 +132,12 @@ export function AdminMachineIps() {
     columns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: 'includesString',
-    state: { columnFilters, globalFilter },
+    state: { sorting, columnFilters, globalFilter },
   })
 
   return (
@@ -158,9 +166,12 @@ export function AdminMachineIps() {
               {table.getHeaderGroups().map(hg => (
                 <tr key={hg.id}>
                   {hg.headers.map(h => (
-                    <th key={h.id} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] ${hideSm(h.id)}`}>
+                    <th key={h.id} onClick={h.column.getToggleSortingHandler()} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] cursor-pointer select-none ${hideSm(h.id)}`}>
                       <div className="flex flex-col">
-                        {h.column.columnDef.header as string}
+                        <div className="flex items-center gap-1">
+                          {h.column.columnDef.header as string}
+                          {h.column.getIsSorted() && <span className="text-[10px]">{h.column.getIsSorted() === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
                         {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
                       </div>
                     </th>
@@ -206,6 +217,16 @@ export function AdminMachineIps() {
             <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Puerto</label>
             <input type="number" value={formPort} onChange={e => setFormPort(Number(e.target.value))}
               className="w-full px-3 py-2 bg-(--surface-btn) border border-(--glass-border) rounded-sm text-sm text-(--text-primary) outline-none focus:border-[var(--accent)]" />
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-xs font-medium text-(--text-secondary) cursor-pointer" onClick={() => setFormIsActive(!formIsActive)}>Activo</label>
+            <button
+              type="button"
+              onClick={() => setFormIsActive(!formIsActive)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${formIsActive ? 'bg-[var(--accent)]' : 'bg-(--surface-btn-hover)'}`}
+            >
+              <span className={`inline-block h-4 w-4 translate-y-0 transform rounded-full bg-white shadow-sm ring-0 transition-transform duration-200 ${formIsActive ? 'translate-x-4' : 'translate-x-0'}`} />
+            </button>
           </div>
           <div>
             <label className="block mb-1 text-xs font-medium text-(--text-secondary)">Etiqueta</label>

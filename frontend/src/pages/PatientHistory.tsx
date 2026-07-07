@@ -5,9 +5,10 @@ import {
   getCoreRowModel,
   getPaginationRowModel,
   getFilteredRowModel,
+  getSortedRowModel,
   createColumnHelper,
 } from '@tanstack/react-table'
-import type { ColumnFiltersState } from '@tanstack/react-table'
+import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { TelemetryReading } from '../types'
 import * as patientsApi from '../api/patients'
@@ -17,7 +18,7 @@ import { formatDate } from '../utils/date'
 const helper = createColumnHelper<TelemetryReading>()
 
 const hideSm = (id: string) =>
-  ['id', 'signal_id', 'unit'].includes(id) ? 'hidden md:table-cell' : ''
+  ['signal_id', 'unit'].includes(id) ? 'hidden md:table-cell' : ''
 
 export function PatientHistory() {
   const { id } = useParams<{ id: string }>()
@@ -26,6 +27,7 @@ export function PatientHistory() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const perPage = 50
 
@@ -39,7 +41,6 @@ export function PatientHistory() {
   }, [id, page])
 
   const columns = useMemo(() => [
-    helper.accessor('id', { header: 'ID' }),
     helper.accessor('timestamp', {
       header: 'Fecha/Hora',
       cell: i => formatDate(i.getValue()),
@@ -55,8 +56,10 @@ export function PatientHistory() {
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    state: { columnFilters },
+    state: { sorting, columnFilters },
     manualPagination: true,
     pageCount: Math.ceil(total / perPage),
   })
@@ -76,9 +79,12 @@ export function PatientHistory() {
               {table.getHeaderGroups().map(hg => (
                 <tr key={hg.id}>
                   {hg.headers.map(h => (
-                    <th key={h.id} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] ${hideSm(h.id)}`}>
+                    <th key={h.id} onClick={h.column.getToggleSortingHandler()} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] cursor-pointer select-none ${hideSm(h.id)}`}>
                       <div className="flex flex-col">
-                        {h.column.columnDef.header as string}
+                        <div className="flex items-center gap-1">
+                          {h.column.columnDef.header as string}
+                          {h.column.getIsSorted() && <span className="text-[10px]">{h.column.getIsSorted() === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
                         {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
                       </div>
                     </th>

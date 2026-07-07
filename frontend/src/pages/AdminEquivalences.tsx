@@ -3,10 +3,12 @@ import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
   createColumnHelper,
 } from '@tanstack/react-table'
-import type { ColumnFiltersState } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, Search } from 'lucide-react'
+import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
+import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Equivalence } from '../types'
 import * as equivalencesApi from '../api/equivalences'
 import { Spinner, Modal, ColumnFilter } from '../components/ui'
@@ -29,6 +31,7 @@ export function AdminEquivalences() {
   const [formInternalName, setFormInternalName] = useState('')
   const [formNumericValue, setFormNumericValue] = useState('')
   const [formDisplayName, setFormDisplayName] = useState('')
+  const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
 
@@ -124,10 +127,14 @@ export function AdminEquivalences() {
     columns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: 'includesString',
-    state: { columnFilters, globalFilter },
+    state: { sorting, columnFilters, globalFilter },
+    initialState: { pagination: { pageSize: 25 } },
   })
 
   return (
@@ -156,9 +163,12 @@ export function AdminEquivalences() {
               {table.getHeaderGroups().map(hg => (
                 <tr key={hg.id}>
                   {hg.headers.map(h => (
-                    <th key={h.id} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] ${hideSm(h.id)}`}>
+                    <th key={h.id} onClick={h.column.getToggleSortingHandler()} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] cursor-pointer select-none ${hideSm(h.id)}`}>
                       <div className="flex flex-col">
-                        {h.column.columnDef.header as string}
+                        <div className="flex items-center gap-1">
+                          {h.column.columnDef.header as string}
+                          {h.column.getIsSorted() && <span className="text-[10px]">{h.column.getIsSorted() === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
                         {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
                       </div>
                     </th>
@@ -179,6 +189,19 @@ export function AdminEquivalences() {
             </tbody>
           </table>
           {data.length === 0 && !error && <div className="text-center py-10 text-(--text-muted) text-sm">No hay equivalencias</div>}
+          {data.length > 0 && (
+            <div className="flex items-center justify-center gap-1 sm:gap-2 pt-4 pb-2">
+              <button onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}
+                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) disabled:opacity-30 cursor-pointer disabled:cursor-default">
+                <ChevronLeft className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Anterior</span>
+              </button>
+              <span className="text-xs sm:text-sm text-(--text-muted)">{table.getState().pagination.pageIndex + 1} / {table.getPageCount()}</span>
+              <button onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}
+                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) disabled:opacity-30 cursor-pointer disabled:cursor-default">
+                <span className="hidden sm:inline">Siguiente</span> <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 

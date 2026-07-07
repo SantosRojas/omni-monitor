@@ -3,9 +3,10 @@ import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
+  getSortedRowModel,
   createColumnHelper,
 } from '@tanstack/react-table'
-import type { ColumnFiltersState } from '@tanstack/react-table'
+import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
 import { Plus, Pencil, Trash2, Search } from 'lucide-react'
 import type { UserResponse } from '../types'
 import * as usersApi from '../api/users'
@@ -14,7 +15,7 @@ import { Spinner, Modal, Badge, Select, ColumnFilter } from '../components/ui'
 const helper = createColumnHelper<UserResponse>()
 
 const hideSm = (id: string) =>
-  ['id', 'full_name', 'email'].includes(id) ? 'hidden md:table-cell' : ''
+  ['full_name', 'email'].includes(id) ? 'hidden md:table-cell' : ''
 
 const roleBadge: Record<string, 'admin' | 'operator' | 'viewer'> = {
   admin: 'admin',
@@ -27,6 +28,7 @@ export function AdminUsers() {
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<UserResponse | null>(null)
+  const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
 
@@ -111,7 +113,6 @@ export function AdminUsers() {
   }
 
   const columns = useMemo(() => [
-    helper.accessor('id', { header: 'ID' }),
     helper.accessor('username', { header: 'Usuario' }),
     helper.accessor('full_name', { header: 'Nombre Completo' }),
     helper.accessor('email', { header: 'Email' }),
@@ -148,10 +149,12 @@ export function AdminUsers() {
     columns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: 'includesString',
-    state: { columnFilters, globalFilter },
+    state: { sorting, columnFilters, globalFilter },
   })
 
   return (
@@ -180,9 +183,12 @@ export function AdminUsers() {
               {table.getHeaderGroups().map(hg => (
                 <tr key={hg.id}>
                   {hg.headers.map(h => (
-                    <th key={h.id} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] ${hideSm(h.id)}`}>
+                    <th key={h.id} onClick={h.column.getToggleSortingHandler()} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] cursor-pointer select-none ${hideSm(h.id)}`}>
                       <div className="flex flex-col">
-                        {h.column.columnDef.header as string}
+                        <div className="flex items-center gap-1">
+                          {h.column.columnDef.header as string}
+                          {h.column.getIsSorted() && <span className="text-[10px]">{h.column.getIsSorted() === 'asc' ? '▲' : '▼'}</span>}
+                        </div>
                         {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
                       </div>
                     </th>
