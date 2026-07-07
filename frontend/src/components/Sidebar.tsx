@@ -1,143 +1,202 @@
 import { useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
-import { Users, HardDrive, UserCog, Activity, GitCompare, Zap, ChevronLeft, ChevronRight } from 'lucide-react'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import {
+  Users, HardDrive, UserCog, Activity, GitCompare, Zap,
+  ChevronsLeft, ChevronsRight,
+  Sun, Moon,
+  LogOut,
+  Menu, X,
+} from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 
-const sections = [
-  {
-    label: 'Principal',
-    links: [
-      { to: '/patients', label: 'Pacientes', icon: Users },
-    ],
-  },
-  {
-    label: 'Administración',
-    links: [
-      { to: '/admin/machine-ips', label: 'IPs de Máquinas', icon: HardDrive },
-      { to: '/admin/users', label: 'Usuarios', icon: UserCog, adminOnly: true },
-      { to: '/admin/equivalences', label: 'Equivalencias', icon: GitCompare, adminOnly: true },
-      { to: '/admin/signals', label: 'Señales', icon: Zap, adminOnly: true },
-    ],
-  },
+const navItems = [
+  { to: '/patients', label: 'Pacientes', icon: Users },
 ]
 
-interface SidebarProps {
-  collapsed: boolean
-  onToggleCollapse: () => void
-}
+const adminNavItems = [
+  { to: '/admin/machine-ips', label: 'IPs de Máquinas', icon: HardDrive },
+  { to: '/admin/users', label: 'Usuarios', icon: UserCog, adminOnly: true },
+  { to: '/admin/equivalences', label: 'Equivalencias', icon: GitCompare, adminOnly: true },
+  { to: '/admin/signals', label: 'Señales', icon: Zap, adminOnly: true },
+]
 
-export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
-  const { isAdmin, user } = useAuth()
+export function Sidebar() {
+  const [open, setOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true')
+  const { isAdmin, user, logout } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const location = useLocation()
-  const [hovered, setHovered] = useState(false)
+  const navigate = useNavigate()
 
-  const expanded = !collapsed || hovered
+  function toggleCollapsed() {
+    setCollapsed(prev => {
+      const next = !prev
+      localStorage.setItem('sidebar_collapsed', String(next))
+      return next
+    })
+  }
 
   const isActive = (to: string) =>
     location.pathname === to || location.pathname.startsWith(to + '/')
 
-  const filteredSections = sections.map(s => ({
-    ...s,
-    links: s.links.filter(l => !l.adminOnly || isAdmin),
-  })).filter(s => s.links.length > 0)
+  function handleLogout() {
+    logout()
+    navigate('/login')
+  }
 
-  return (
-    <aside
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className={`sidebar-width hidden md:flex fixed left-0 top-0 z-40 h-screen flex-col border-r border-(--glass-border) bg-[var(--sidebar-bg)] backdrop-blur-[12px]
-        ${expanded ? 'w-[var(--sidebar-width)]' : 'w-16'}`}
-    >
-      {/* Brand */}
-      <div className={`flex items-center ${expanded ? 'px-4' : 'justify-center'} py-3 mb-4`}>
+  const filteredAdminItems = adminNavItems.filter(l => !l.adminOnly || isAdmin)
+
+  function linkClass(to: string) {
+    const active = isActive(to)
+    return `flex items-center rounded-lg px-3 py-2 text-sm transition-colors no-underline
+      ${collapsed ? 'justify-center px-0 mx-auto w-10 h-10' : 'gap-3'}
+      ${active
+        ? 'glass text-(--text-primary) font-medium shadow-sm'
+        : 'text-(--text-secondary) hover:glass-hover hover:text-(--text-primary)'}`
+  }
+
+  const sidebarContent = (
+    <div className="flex h-full flex-col gap-4">
+      <div className={`flex items-center ${collapsed ? 'justify-center px-0' : 'px-4'} py-4`}>
         <NavLink
           to="/patients"
           className="flex items-center gap-3 text-lg font-bold text-(--text-primary) no-underline"
-          title={expanded ? undefined : 'Monitor OMNI'}
+          title={collapsed ? 'Monitor OMNI' : undefined}
         >
-          <Activity className="w-6 h-6 text-[var(--accent)] shrink-0" />
-          {expanded && (
-            <span>Monitor <span className="text-[var(--accent)]">OMNI</span></span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)] shadow-sm">
+            <Activity className="h-4 w-4 text-white" />
+          </div>
+          {!collapsed && (
+            <span className="font-semibold tracking-tight">Monitor <span className="text-[var(--accent)]">OMNI</span></span>
           )}
         </NavLink>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex flex-col flex-1 overflow-y-auto sidebar-scroll px-2">
-        {filteredSections.map(section => (
-          <div key={section.label} className="mb-3">
-            {expanded && (
-              <div className="px-4 py-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-widest text-(--text-muted)">
-                  {section.label}
-                </span>
-              </div>
-            )}
-            <div className="flex flex-col gap-0.5">
-              {section.links.map(l => {
-                const active = isActive(l.to)
-                return (
-                  <div key={l.to} className="relative group">
-                    <NavLink
-                      to={l.to}
-                      end
-                      className={`nav-link-active flex items-center gap-3 px-4 py-2.5 rounded-sm text-sm no-underline transition-all duration-200
-                        ${expanded ? 'px-4' : 'justify-center px-0 mx-auto w-10 h-10'}
-                        ${active
-                          ? '!text-[var(--accent)] bg-[var(--accent)]/12 border border-[var(--accent)]/25 shadow-[0_0_12px_-4px_var(--accent)]'
-                          : 'text-(--text-secondary) hover:bg-[var(--surface-hover)] hover:text-(--text-primary)'
-                        }`}
-                      title={!expanded ? l.label : undefined}
-                    >
-                      <l.icon className={`shrink-0 transition-transform duration-200 group-hover:scale-110 ${active ? 'scale-110' : ''} ${expanded ? 'w-4 h-4' : 'w-5 h-5'}`} />
-                      {expanded && <span>{l.label}</span>}
-                      {active && <span className="nav-active-bar" />}
-                    </NavLink>
-                    {!expanded && (
-                      <span className="sidebar-tooltip">{l.label}</span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+      <nav className={`flex-1 overflow-y-auto sidebar-scroll ${collapsed ? 'px-2' : 'px-3'}`}>
+        {navItems.map(item => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === '/patients'}
+            className={linkClass(item.to)}
+            onClick={() => setOpen(false)}
+            title={collapsed ? item.label : undefined}
+          >
+            <item.icon className="h-4 w-4 shrink-0" />
+            {!collapsed && item.label}
+          </NavLink>
         ))}
+
+        {filteredAdminItems.length > 0 && (
+          <>
+            <div className="my-2 border-t border-(--glass-border)" />
+            {!collapsed && (
+              <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-(--text-muted)">
+                Administración
+              </p>
+            )}
+            {filteredAdminItems.map(item => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={linkClass(item.to)}
+                onClick={() => setOpen(false)}
+                title={collapsed ? item.label : undefined}
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                {!collapsed && item.label}
+              </NavLink>
+            ))}
+          </>
+        )}
       </nav>
 
-      {/* User card */}
-      {user && (
-        <div className={`border-t border-(--glass-border) ${expanded ? 'px-4 py-3' : 'px-2 py-3 flex justify-center'}`}>
-          {expanded ? (
-            <div className="glass-sm flex items-center gap-3 px-3 py-2.5 text-sm text-(--text-secondary)">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent)]/60 flex items-center justify-center text-white font-semibold text-xs shrink-0 shadow-sm">
-                {user.full_name.charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium text-(--text-primary) text-xs leading-tight">{user.full_name}</div>
-                <div className="truncate text-[11px] text-(--text-muted) mt-0.5">{user.role}</div>
-              </div>
-            </div>
-          ) : (
-            <div className="relative group" title={user.full_name}>
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent)]/60 flex items-center justify-center text-white font-semibold text-sm shadow-sm">
-                {user.full_name.charAt(0).toUpperCase()}
-              </div>
-              <span className="sidebar-tooltip">{user.full_name} · {user.role}</span>
+      <div className="border-t border-(--glass-border) p-3">
+        <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3 px-3'} mb-3`}>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/20 text-sm font-medium text-[var(--accent)] ring-2 ring-[var(--accent)]/20">
+            {user?.full_name?.charAt(0)?.toUpperCase() || user?.username?.charAt(0)?.toUpperCase() || 'U'}
+          </div>
+          {!collapsed && (
+            <div className="flex-1 truncate">
+              <p className="text-sm text-(--text-primary) font-medium">{user?.full_name || user?.username}</p>
+              <p className="text-xs text-(--text-muted) capitalize">{user?.role}</p>
             </div>
           )}
         </div>
-      )}
 
-      {/* Collapse toggle */}
-      <div className={`flex ${expanded ? 'justify-end px-3' : 'justify-center'} py-2`}>
+        {!collapsed ? (
+          <div className="mb-2 flex rounded-lg border border-(--glass-border) bg-(--glass-bg) p-0.5">
+            <button
+              onClick={() => theme !== 'light' && toggleTheme()}
+              className={`flex flex-1 items-center justify-center rounded-md px-2 py-1.5 text-xs transition-all ${theme === 'light' ? 'bg-(--surface-card) text-(--text-primary) shadow-sm' : 'text-(--text-muted) hover:text-(--text-primary)'}`}
+              title="Claro"
+            >
+              <Sun className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => theme !== 'dark' && toggleTheme()}
+              className={`flex flex-1 items-center justify-center rounded-md px-2 py-1.5 text-xs transition-all ${theme === 'dark' ? 'bg-(--surface-card) text-(--text-primary) shadow-sm' : 'text-(--text-muted) hover:text-(--text-primary)'}`}
+              title="Oscuro"
+            >
+              <Moon className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <div className="mb-2 flex justify-center">
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 rounded-sm text-(--text-muted) hover:text-(--text-primary) hover:bg-(--surface-hover) cursor-pointer"
+              title={theme === 'dark' ? 'Cambiar a claro' : 'Cambiar a oscuro'}
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          </div>
+        )}
+
         <button
-          onClick={onToggleCollapse}
-          className="p-1.5 rounded-sm text-(--text-muted) hover:text-(--text-primary) hover:bg-[var(--surface-hover)] cursor-pointer transition-all duration-200"
-          title={collapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
+          onClick={handleLogout}
+          className={`flex items-center rounded-lg px-3 py-2 text-sm text-(--text-secondary) hover:text-[var(--danger)] hover:bg-(--surface-hover) transition-colors no-underline w-full ${collapsed ? 'justify-center px-0' : 'gap-3'}`}
+          title={collapsed ? 'Cerrar sesión' : undefined}
         >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && 'Cerrar sesión'}
         </button>
       </div>
-    </aside>
+    </div>
+  )
+
+  return (
+    <>
+      <button
+        className="fixed left-4 top-4 z-50 flex h-9 w-9 items-center justify-center rounded-md border border-(--glass-border) bg-(--sidebar-bg) backdrop-blur-md md:hidden"
+        onClick={() => setOpen(!open)}
+      >
+        {open ? <X className="h-4 w-4 text-(--text-primary)" /> : <Menu className="h-4 w-4 text-(--text-primary)" />}
+      </button>
+
+      <aside
+        className={`relative hidden shrink-0 border-r border-(--glass-border) bg-(--sidebar-bg) backdrop-blur-[12px] transition-all duration-200 md:block ${collapsed ? 'w-16' : 'w-[var(--sidebar-width)]'}`}
+      >
+        {sidebarContent}
+
+        <button
+          onClick={toggleCollapsed}
+          className="absolute -right-3 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-(--glass-border) bg-(--sidebar-bg) text-(--text-muted) shadow-sm hover:text-(--text-primary)"
+          title={collapsed ? 'Expandir' : 'Colapsar'}
+        >
+          {collapsed ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
+        </button>
+      </aside>
+
+      {open && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <aside className="fixed left-0 top-0 z-50 h-full w-72 border-r border-(--glass-border) bg-(--sidebar-bg-mobile) backdrop-blur-[12px] shadow-xl animate-slide-up">
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+    </>
   )
 }

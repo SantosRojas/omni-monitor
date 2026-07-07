@@ -1,4 +1,4 @@
-import { Sun, Moon, LogOut, Palette, Check } from 'lucide-react'
+import { Palette, Check } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { useState, useRef, useEffect } from 'react'
@@ -8,8 +8,8 @@ interface TopbarProps {
 }
 
 export function Topbar({ title }: TopbarProps) {
-  const { user, logout } = useAuth()
-  const { theme, toggleTheme, accent, setAccent, accents } = useTheme()
+  const { user } = useAuth()
+  const { accent, setAccent, accents } = useTheme()
   const [showAccents, setShowAccents] = useState(false)
   const [customColor, setCustomColor] = useState(accent)
   const ref = useRef<HTMLDivElement>(null)
@@ -80,15 +80,8 @@ export function Topbar({ title }: TopbarProps) {
           )}
         </div>
 
-        <button onClick={toggleTheme} className="p-1.5 rounded-sm hover:bg-[var(--surface-hover)] cursor-pointer">
-          {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-        </button>
-
         <span className="text-(--text-muted) hidden md:inline">|</span>
         <span className="hidden md:inline truncate max-w-[120px]">{user?.full_name || user?.username}</span>
-        <button onClick={logout} className="p-1.5 rounded-sm hover:bg-[var(--surface-hover)] text-[var(--danger)] cursor-pointer">
-          <LogOut className="w-4 h-4" />
-        </button>
       </div>
     </header>
   )
