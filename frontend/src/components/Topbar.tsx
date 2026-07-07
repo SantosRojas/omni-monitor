@@ -1,14 +1,13 @@
-import { Sun, Moon, LogOut, Palette, Menu, Check } from 'lucide-react'
+import { Sun, Moon, LogOut, Palette, Check } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { useState, useRef, useEffect } from 'react'
 
 interface TopbarProps {
   title: string
-  onToggleSidebar: () => void
 }
 
-export function Topbar({ title, onToggleSidebar }: TopbarProps) {
+export function Topbar({ title }: TopbarProps) {
   const { user, logout } = useAuth()
   const { theme, toggleTheme, accent, setAccent, accents } = useTheme()
   const [showAccents, setShowAccents] = useState(false)
@@ -30,9 +29,6 @@ export function Topbar({ title, onToggleSidebar }: TopbarProps) {
   return (
     <header className="h-[var(--header-height)] px-3 md:px-8 flex items-center justify-between sticky top-0 z-30 bg-[var(--topbar-bg)] backdrop-blur-[12px] border-b border-(--glass-border)">
       <div className="flex items-center gap-3 min-w-0">
-        <button onClick={onToggleSidebar} className="md:hidden p-1.5 rounded-sm hover:bg-[var(--surface-hover)] cursor-pointer text-(--text-secondary)">
-          <Menu className="w-5 h-5" />
-        </button>
         <h1 className="text-sm md:text-lg font-semibold text-(--text-primary) truncate">{title}</h1>
       </div>
 
