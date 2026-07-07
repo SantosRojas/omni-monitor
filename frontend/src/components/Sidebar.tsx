@@ -50,7 +50,7 @@ export function Sidebar() {
     return `flex items-center rounded-lg px-3 py-2 text-sm transition-colors no-underline
       ${collapsed ? 'justify-center px-0 mx-auto w-10 h-10' : 'gap-3'}
       ${active
-        ? 'glass text-(--text-primary) font-medium shadow-sm'
+        ? 'bg-(--glass-bg) backdrop-blur-[12px] text-(--accent) font-medium shadow-sm border border-[var(--accent)]/30'
         : 'text-(--text-secondary) hover:glass-hover hover:text-(--text-primary)'}`
   }
 

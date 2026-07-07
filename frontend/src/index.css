@@ -76,28 +76,30 @@ html {
   color-scheme: light;
 }
 
-.glass {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  box-shadow: var(--glass-shadow);
-}
+@layer components {
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    box-shadow: var(--glass-shadow);
+  }
 
-.glass-sm {
-  background: var(--glass-sm-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--glass-sm-border);
-  border-radius: var(--radius-sm);
-}
+  .glass-sm {
+    background: var(--glass-sm-bg);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--glass-sm-border);
+    border-radius: var(--radius-sm);
+  }
 
-.glass-hover {
-  background: var(--surface-hover);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+  .glass-hover {
+    background: var(--surface-hover);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+  }
 }
 
 @layer base {
