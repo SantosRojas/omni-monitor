@@ -358,37 +358,37 @@ impl DbPool {
             Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
                 Self::Sqlite(p) => {
                 if let Some(s) = search {
-                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str LIKE ? ORDER BY p.id DESC LIMIT ? OFFSET ?")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str LIKE ? ORDER BY active_therapy_count DESC, p.id DESC LIMIT ? OFFSET ?")
                         .bind(format!("%{}%", s)).bind(per_page).bind(offset).fetch_all(p).await?
                 } else {
-                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY p.id DESC LIMIT ? OFFSET ?")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY active_therapy_count DESC, p.id DESC LIMIT ? OFFSET ?")
                         .bind(per_page).bind(offset).fetch_all(p).await?
                 }
             }
             Self::Postgres(p) => {
                 if let Some(s) = search {
-                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str ILIKE $1 ORDER BY p.id DESC LIMIT $2 OFFSET $3")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str ILIKE $1 ORDER BY active_therapy_count DESC, p.id DESC LIMIT $2 OFFSET $3")
                         .bind(format!("%{}%", s)).bind(per_page).bind(offset).fetch_all(p).await?
                 } else {
-                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY p.id DESC LIMIT $1 OFFSET $2")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY active_therapy_count DESC, p.id DESC LIMIT $1 OFFSET $2")
                         .bind(per_page).bind(offset).fetch_all(p).await?
                 }
             }
             Self::Mysql(p) => {
                 if let Some(s) = search {
-                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str LIKE ? ORDER BY p.id DESC LIMIT ? OFFSET ?")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str LIKE ? ORDER BY active_therapy_count DESC, p.id DESC LIMIT ? OFFSET ?")
                         .bind(format!("%{}%", s)).bind(per_page).bind(offset).fetch_all(p).await?
                 } else {
-                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY p.id DESC LIMIT ? OFFSET ?")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY active_therapy_count DESC, p.id DESC LIMIT ? OFFSET ?")
                         .bind(per_page).bind(offset).fetch_all(p).await?
                 }
             }
             Self::Mssql(p) => {
                 if let Some(s) = search {
-                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str LIKE @P1 ORDER BY p.id DESC OFFSET @P2 ROWS FETCH NEXT @P3 ROWS ONLY")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str LIKE @P1 ORDER BY active_therapy_count DESC, p.id DESC OFFSET @P2 ROWS FETCH NEXT @P3 ROWS ONLY")
                         .bind(format!("%{}%", s)).bind(offset).bind(per_page).fetch_all(p).await?
                 } else {
-                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY p.id DESC OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY")
+                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY active_therapy_count DESC, p.id DESC OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY")
                         .bind(offset).bind(per_page).fetch_all(p).await?
                 }
             }
@@ -408,18 +408,23 @@ impl DbPool {
 
     // --- Therapies ---
     pub async fn list_therapies_by_patient(&self, patient_id: i64) -> Result<Vec<TherapyWithMachine>, sqlx::Error> {
-        let sql = "SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = ? ORDER BY t.started_at DESC";
         let raw: Vec<TherapyRaw> = match self {
             Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-                Self::Sqlite(p) => sqlx::query_as(sql).bind(patient_id).fetch_all(p).await?,
-            Self::Postgres(p) => {
-                let pg_sql = sql.replace('?', "$1");
-                sqlx::query_as(AssertSqlSafe(pg_sql)).bind(patient_id).fetch_all(p).await?
+            Self::Sqlite(p) => {
+                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = ? ORDER BY t.started_at DESC")
+                    .bind(patient_id).fetch_all(p).await?
             }
-            Self::Mysql(p) => sqlx::query_as(sql).bind(patient_id).fetch_all(p).await?,
+            Self::Postgres(p) => {
+                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = $1 ORDER BY t.started_at DESC")
+                    .bind(patient_id).fetch_all(p).await?
+            }
+            Self::Mysql(p) => {
+                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = ? ORDER BY t.started_at DESC")
+                    .bind(patient_id).fetch_all(p).await?
+            }
             Self::Mssql(p) => {
-                let mssql_sql = sql.replace('?', "@P1");
-                sqlx::query_as(AssertSqlSafe(mssql_sql)).bind(patient_id).fetch_all(p).await?
+                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT TOP 1 mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id) as ip_address, (SELECT TOP 1 mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id) as port FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = @P1 ORDER BY t.started_at DESC")
+                    .bind(patient_id).fetch_all(p).await?
             }
         };
         Ok(raw.into_iter().map(TherapyWithMachine::from).collect())
@@ -899,11 +904,13 @@ struct TherapyRaw {
     pub ended_at: Option<NaiveDateTime>,
     pub serial_number: Option<String>,
     pub software_version: Option<String>,
+    pub ip_address: Option<String>,
+    pub port: Option<i32>,
 }
 
 impl From<TherapyRaw> for TherapyWithMachine {
     fn from(r: TherapyRaw) -> Self {
-        Self { id: r.id, started_at: r.started_at, ended_at: r.ended_at, status: r.status, machine_id: r.machine_id, serial_number: r.serial_number, software_version: r.software_version }
+        Self { id: r.id, started_at: r.started_at, ended_at: r.ended_at, status: r.status, machine_id: r.machine_id, serial_number: r.serial_number, software_version: r.software_version, ip_address: r.ip_address, port: r.port }
     }
 }
 

@@ -123,7 +123,18 @@ export function PatientDetail() {
               {therapyTable.getRowModel().rows.map(row => (
                 <tr
                   key={row.id}
-                  onClick={() => navigate(`/therapies/${row.original.id}`)}
+                  onClick={() => {
+                    const t = row.original
+                    if (t.status === 'active') {
+                      if (t.ip_address) {
+                        window.open(`http://${t.ip_address}:${t.port ?? 9001}/therapy/${t.id}`, '_blank')
+                      } else {
+                        alert('No se encuentra la IP de la máquina registrada')
+                      }
+                    } else {
+                      navigate(`/therapies/${t.id}`)
+                    }
+                  }}
                   className="cursor-pointer hover:bg-(--surface-row-hover) transition-colors"
                 >
                   {row.getVisibleCells().map(cell => (

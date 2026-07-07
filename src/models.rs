@@ -82,6 +82,8 @@ pub struct TherapyWithMachine {
     pub machine_id: Option<i64>,
     pub serial_number: Option<String>,
     pub software_version: Option<String>,
+    pub ip_address: Option<String>,
+    pub port: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

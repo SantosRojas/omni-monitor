@@ -52,6 +52,8 @@ export interface TherapyWithMachine {
   machine_id?: number
   serial_number?: string
   software_version?: string
+  ip_address?: string
+  port?: number
 }
 
 export interface MachineIp {
