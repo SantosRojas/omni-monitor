@@ -100,17 +100,19 @@ html {
   transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
 
-input, select, textarea {
-  color-scheme: dark;
-  border-color: rgba(255, 255, 255, 0.15);
-}
+@layer base {
+  input, select, textarea {
+    color-scheme: dark;
+    border-color: rgba(255, 255, 255, 0.15);
+  }
 
-:root:not(.dark) input:not([type="submit"]):not([type="button"]),
-:root:not(.dark) select,
-:root:not(.dark) textarea {
-  color-scheme: light;
-  border-color: rgba(0, 0, 0, 0.2);
-  background: #fff;
+  :root:not(.dark) input:not([type="submit"]):not([type="button"]),
+  :root:not(.dark) select,
+  :root:not(.dark) textarea {
+    color-scheme: light;
+    border-color: rgba(0, 0, 0, 0.2);
+    background: #fff;
+  }
 }
 
 :root:not(.dark) th,
