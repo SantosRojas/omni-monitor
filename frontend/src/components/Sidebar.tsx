@@ -78,7 +78,6 @@ export function Sidebar() {
             to={item.to}
             end={item.to === '/patients'}
             className={linkClass(item.to)}
-            onClick={() => setOpen(false)}
             title={collapsed ? item.label : undefined}
           >
             <item.icon className="h-4 w-4 shrink-0" />

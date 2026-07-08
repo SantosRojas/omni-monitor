@@ -12,6 +12,7 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { Equivalence } from '../types'
 import * as equivalencesApi from '../api/equivalences'
 import { Spinner, Modal, ColumnFilter, Button, Input, Label, SearchInput, Pagination } from '../components/ui'
+import { useToast } from '../contexts/ToastContext'
 
 const helper = createColumnHelper<Equivalence>()
 
@@ -19,6 +20,7 @@ const hideSm = (id: string) =>
   ['internal_name'].includes(id) ? 'hidden md:table-cell' : ''
 
 export function AdminEquivalences() {
+  const { showToast } = useToast()
   const [data, setData] = useState<Equivalence[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -80,7 +82,7 @@ export function AdminEquivalences() {
       setModalOpen(false)
       fetchData()
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error al guardar')
+      showToast(e instanceof Error ? e.message : 'Error al guardar')
     }
   }
 
@@ -98,7 +100,7 @@ export function AdminEquivalences() {
       setDeleting(null)
       fetchData()
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error al eliminar')
+      showToast(e instanceof Error ? e.message : 'Error al eliminar')
     }
   }
 

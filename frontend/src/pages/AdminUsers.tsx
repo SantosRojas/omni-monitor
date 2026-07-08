@@ -11,6 +11,7 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { UserResponse } from '../types'
 import * as usersApi from '../api/users'
 import { Spinner, Modal, Badge, Select, ColumnFilter, Button, Input, Label, SearchInput } from '../components/ui'
+import { useToast } from '../contexts/ToastContext'
 
 const helper = createColumnHelper<UserResponse>()
 
@@ -24,6 +25,7 @@ const roleBadge: Record<string, 'admin' | 'operator' | 'viewer'> = {
 }
 
 export function AdminUsers() {
+  const { showToast } = useToast()
   const [data, setData] = useState<UserResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -42,7 +44,7 @@ export function AdminUsers() {
     setLoading(true)
     usersApi.listUsers()
       .then(setData)
-      .catch(console.error)
+      .catch(e => showToast(e instanceof Error ? e.message : 'Error al cargar usuarios'))
       .finally(() => setLoading(false))
   }
 
@@ -89,7 +91,7 @@ export function AdminUsers() {
       setModalOpen(false)
       fetchData()
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error al guardar')
+      showToast(e instanceof Error ? e.message : 'Error al guardar')
     }
   }
 
@@ -98,7 +100,7 @@ export function AdminUsers() {
       await usersApi.updateUser(user.id, { active: !user.active })
       fetchData()
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error al cambiar estado')
+      showToast(e instanceof Error ? e.message : 'Error al cambiar estado')
     }
   }
 
@@ -108,7 +110,7 @@ export function AdminUsers() {
       await usersApi.deleteUser(id)
       fetchData()
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error al eliminar')
+      showToast(e instanceof Error ? e.message : 'Error al eliminar')
     }
   }
 

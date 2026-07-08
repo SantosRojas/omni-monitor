@@ -12,6 +12,7 @@ import { Pencil } from 'lucide-react'
 import type { Signal } from '../types'
 import * as signalsApi from '../api/signals'
 import { Spinner, Modal, ColumnFilter, Button, Input, Label, Pagination } from '../components/ui'
+import { useToast } from '../contexts/ToastContext'
 
 const helper = createColumnHelper<Signal>()
 
@@ -19,6 +20,7 @@ const hideSm = (id: string) =>
   ['internal_name', 'unit'].includes(id) ? 'hidden md:table-cell' : ''
 
 export function AdminSignals() {
+  const { showToast } = useToast()
   const [data, setData] = useState<Signal[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Signal | null>(null)
@@ -31,7 +33,7 @@ export function AdminSignals() {
     setLoading(true)
     signalsApi.listSignals()
       .then(setData)
-      .catch(console.error)
+      .catch(e => showToast(e instanceof Error ? e.message : 'Error al cargar señales'))
       .finally(() => setLoading(false))
   }
 
@@ -59,7 +61,7 @@ export function AdminSignals() {
       )
       setSelected(null)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error al guardar')
+      showToast(e instanceof Error ? e.message : 'Error al guardar')
     }
   }
 

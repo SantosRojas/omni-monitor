@@ -11,7 +11,6 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    historyApiFallback: true,
     proxy: {
       '/api': {
         target: 'http://localhost:9002',

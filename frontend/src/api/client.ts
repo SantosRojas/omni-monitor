@@ -1,3 +1,5 @@
+import { parseApiError } from './errors'
+
 const API_BASE = '/api'
 
 async function request<T>(
@@ -21,8 +23,7 @@ async function request<T>(
   })
 
   if (!res.ok) {
-    const text = await res.text().catch(() => 'Unknown error')
-    throw new Error(`HTTP ${res.status}: ${text}`)
+    throw await parseApiError(res)
   }
 
   if (res.status === 204) return undefined as T

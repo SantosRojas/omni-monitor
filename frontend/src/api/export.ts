@@ -1,49 +1,41 @@
+import { parseApiError } from './errors'
+
 const API_BASE = '/api'
 
-export async function triggerPatientExport(patientId: number) {
+async function fetchExport(patientIdOrTherapyId: number, type: 'patient' | 'therapy') {
   const token = localStorage.getItem('monitor_token')
   if (!token) return
 
-  const res = await fetch(`${API_BASE}/patients/${patientId}/export`, {
+  const path = type === 'patient'
+    ? `${API_BASE}/patients/${patientIdOrTherapyId}/export`
+    : `${API_BASE}/therapies/${patientIdOrTherapyId}/export`
+
+  const res = await fetch(path, {
     headers: { Authorization: `Bearer ${token}` },
   })
 
   if (!res.ok) {
-    const text = await res.text().catch(() => 'Error al exportar')
-    throw new Error(`HTTP ${res.status}: ${text}`)
+    throw await parseApiError(res)
   }
 
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
+  const filename = type === 'patient'
+    ? `patient_${patientIdOrTherapyId}_history.xlsx`
+    : `therapy_${patientIdOrTherapyId}_data.xlsx`
   const a = document.createElement('a')
   a.href = url
-  a.download = `patient_${patientId}_history.xlsx`
+  a.download = filename
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
 
-export async function triggerTherapyExport(therapyId: number) {
-  const token = localStorage.getItem('monitor_token')
-  if (!token) return
+export function triggerPatientExport(patientId: number) {
+  return fetchExport(patientId, 'patient')
+}
 
-  const res = await fetch(`${API_BASE}/therapies/${therapyId}/export`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => 'Error al exportar')
-    throw new Error(`HTTP ${res.status}: ${text}`)
-  }
-
-  const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `therapy_${therapyId}_data.xlsx`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+export function triggerTherapyExport(therapyId: number) {
+  return fetchExport(therapyId, 'therapy')
 }

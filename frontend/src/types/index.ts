@@ -145,6 +145,7 @@ export interface CreateMachineIpRequest {
   ip_address: string
   port?: number
   label?: string
+  is_active?: boolean
 }
 
 export interface UpdateMachineIpRequest {

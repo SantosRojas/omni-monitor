@@ -12,7 +12,8 @@ import {
 } from '@tanstack/react-table'
 import type { Patient } from '../types'
 import * as patientsApi from '../api/patients'
-import { Spinner, Badge, SearchInput, Pagination, Button } from '../components/ui'
+import { Spinner, Badge, SearchInput, Button } from '../components/ui'
+import { useToast } from '../contexts/ToastContext'
 import { formatDateShort } from '../utils/date'
 
 const columnHelper = createColumnHelper<Patient>()
@@ -21,6 +22,7 @@ const hideSm = (id: string) =>
   ['created_at'].includes(id) ? 'hidden md:table-cell' : ''
 
 export function PatientsPage() {
+  const { showToast } = useToast()
   const navigate = useNavigate()
   const [data, setData] = useState<Patient[]>([])
   const [loading, setLoading] = useState(true)
@@ -37,7 +39,7 @@ export function PatientsPage() {
       setData(res.data)
       setTotal(res.total)
     } catch (e) {
-      console.error(e)
+      showToast(e instanceof Error ? e.message : 'Error al cargar pacientes')
     } finally {
       setLoading(false)
     }

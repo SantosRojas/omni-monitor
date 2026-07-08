@@ -11,6 +11,7 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { MachineIpWithSerial, Machine } from '../types'
 import * as machinesApi from '../api/machines'
 import { Spinner, Modal, Badge, Select, ColumnFilter, Button, Input, Label, SearchInput } from '../components/ui'
+import { useToast } from '../contexts/ToastContext'
 
 const helper = createColumnHelper<MachineIpWithSerial>()
 
@@ -18,6 +19,7 @@ const hideSm = (id: string) =>
   ['port', 'label'].includes(id) ? 'hidden md:table-cell' : ''
 
 export function AdminMachineIps() {
+  const { showToast } = useToast()
   const [data, setData] = useState<MachineIpWithSerial[]>([])
   const [machines, setMachines] = useState<Machine[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,7 +43,7 @@ export function AdminMachineIps() {
     ]).then(([ips, machs]) => {
       setData(ips)
       setMachines(machs)
-    }).catch(console.error)
+    }).catch(e => showToast(e instanceof Error ? e.message : 'Error al cargar'))
       .finally(() => setLoading(false))
   }
 
@@ -88,7 +90,7 @@ export function AdminMachineIps() {
       setModalOpen(false)
       fetchData()
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error al guardar')
+      showToast(e instanceof Error ? e.message : 'Error al guardar')
     }
   }
 
@@ -98,7 +100,7 @@ export function AdminMachineIps() {
       await machinesApi.deleteMachineIp(id)
       fetchData()
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error al eliminar')
+      showToast(e instanceof Error ? e.message : 'Error al eliminar')
     }
   }
 

@@ -5,6 +5,7 @@ import type { DashboardSignal } from '../types'
 import * as patientsApi from '../api/patients'
 import { Spinner } from '../components/ui/Spinner'
 import { Chart } from '../components/Chart'
+import { useToast } from '../contexts/ToastContext'
 
 const SIGNALS_TO_SHOW = new Set([
   'c_pump_bs_bl_flow_act',
@@ -19,6 +20,7 @@ const SIGNALS_TO_SHOW = new Set([
 ])
 
 export function PatientDashboard() {
+  const { showToast } = useToast()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [signals, setSignals] = useState<DashboardSignal[]>([])
@@ -28,7 +30,7 @@ export function PatientDashboard() {
     if (!id) return
     patientsApi.getPatientDashboard(Number(id))
       .then(res => setSignals(res.signals))
-      .catch(console.error)
+      .catch(e => showToast(e instanceof Error ? e.message : 'Error al cargar dashboard'))
       .finally(() => setLoading(false))
   }, [id])
 

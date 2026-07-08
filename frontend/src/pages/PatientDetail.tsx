@@ -13,6 +13,7 @@ import type { Patient, TherapyWithMachine } from '../types'
 import * as patientsApi from '../api/patients'
 import { triggerPatientExport } from '../api/export'
 import { Spinner, Badge, ColumnFilter, Button, SearchInput } from '../components/ui'
+import { useToast } from '../contexts/ToastContext'
 import { formatDate, formatDateShort } from '../utils/date'
 
 const therapyHelper = createColumnHelper<TherapyWithMachine>()
@@ -21,6 +22,7 @@ const hideSm = (id: string) =>
   ['ended_at', 'software_version'].includes(id) ? 'hidden md:table-cell' : ''
 
 export function PatientDetail() {
+  const { showToast } = useToast()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [patient, setPatient] = useState<Patient | null>(null)
@@ -39,7 +41,7 @@ export function PatientDetail() {
     ]).then(([p, t]) => {
       setPatient(p)
       setTherapies(t)
-    }).catch(console.error)
+    }).catch(e => showToast(e instanceof Error ? e.message : 'Error al cargar paciente'))
       .finally(() => setLoading(false))
   }, [id])
 
@@ -100,7 +102,7 @@ export function PatientDetail() {
             <Link to={`/patients/${patient.id}/history`} className="no-underline">
               <Button variant="secondary" size="sm" icon={<Clock className="w-4 h-4" />}>Historial</Button>
             </Link>
-            <Button variant="secondary" size="sm" icon={<FileDown className="w-4 h-4" />} onClick={() => triggerPatientExport(patient.id).catch(console.error)}>
+            <Button variant="secondary" size="sm" icon={<FileDown className="w-4 h-4" />} onClick={() => triggerPatientExport(patient.id).catch(e => showToast(e instanceof Error ? e.message : 'Error al exportar'))}>
               Exportar
             </Button>
           </div>
@@ -151,7 +153,7 @@ export function PatientDetail() {
                       if (t.ip_address) {
                         window.open(`http://${t.ip_address}:${t.port ?? 9001}/therapy/${t.id}`, '_blank')
                       } else {
-                        alert('No se encuentra la IP de la máquina registrada')
+                        showToast('No se encuentra la IP de la máquina registrada')
                       }
                     } else {
                       navigate(`/therapies/${t.id}`)

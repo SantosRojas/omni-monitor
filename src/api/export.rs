@@ -18,7 +18,7 @@ pub async fn export_patient(
     let patient = state.pool.find_patient_by_id(id).await?
         .ok_or(AppError::NotFound)?;
     let data = state.pool.export_patient_telemetry(id).await?;
-    let equivalences = state.pool.load_equivalences().await.unwrap_or_default();
+    let equivalences = state.pool.load_equivalences().await?;
     let filename = format!("patient_{}_history.xlsx", patient.patient_id_str);
     let bytes = build_excel(&data, &equivalences).map_err(|e| AppError::Export(e))?;
     Ok(ExportResponse { bytes, filename })
@@ -30,7 +30,7 @@ pub async fn export_therapy(
     Path(id): Path<i64>,
 ) -> Result<ExportResponse, AppError> {
     let data = state.pool.export_therapy_telemetry(id).await?;
-    let equivalences = state.pool.load_equivalences().await.unwrap_or_default();
+    let equivalences = state.pool.load_equivalences().await?;
     let filename = format!("therapy_{}_data.xlsx", id);
     let bytes = build_excel(&data, &equivalences).map_err(|e| AppError::Export(e))?;
     Ok(ExportResponse { bytes, filename })

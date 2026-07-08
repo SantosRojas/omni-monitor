@@ -48,7 +48,7 @@ impl IntoResponse for AppError {
             }
             Self::Export(e) => {
                 tracing::error!(error = %e, "Export error");
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("Export error: {}", e))
+                (StatusCode::INTERNAL_SERVER_ERROR, "Error de exportación".to_string())
             }
             Self::TokenIssuance => (StatusCode::INTERNAL_SERVER_ERROR, "Token issuance failed".to_string()),
         };

@@ -6,6 +6,7 @@ import * as patientsApi from '../api/patients'
 import { triggerTherapyExport } from '../api/export'
 import { Spinner } from '../components/ui/Spinner'
 import { Chart } from '../components/Chart'
+import { useToast } from '../contexts/ToastContext'
 
 const SIGNALS_TO_SHOW = new Set([
   'c_pump_bs_bl_flow_act',
@@ -20,6 +21,7 @@ const SIGNALS_TO_SHOW = new Set([
 ])
 
 export function TherapyDetail() {
+  const { showToast } = useToast()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [signals, setSignals] = useState<DashboardSignal[]>([])
@@ -29,7 +31,7 @@ export function TherapyDetail() {
     if (!id) return
     patientsApi.getTherapyDashboard(Number(id))
       .then(res => setSignals(res.signals))
-      .catch(console.error)
+      .catch(e => showToast(e instanceof Error ? e.message : 'Error al cargar terapia'))
       .finally(() => setLoading(false))
   }, [id])
 
@@ -47,7 +49,7 @@ export function TherapyDetail() {
           </button>
           <h2 className="text-lg md:text-xl font-bold text-(--text-primary)">Terapia #{id}</h2>
         </div>
-        <button onClick={() => triggerTherapyExport(Number(id)).catch(console.error)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) cursor-pointer">
+        <button onClick={() => triggerTherapyExport(Number(id)).catch(e => showToast(e instanceof Error ? e.message : 'Error al exportar'))} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) cursor-pointer">
           <FileDown className="w-4 h-4" /> Exportar
         </button>
       </div>

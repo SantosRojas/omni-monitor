@@ -13,6 +13,7 @@ import { ArrowLeft } from 'lucide-react'
 import type { TelemetryReading } from '../types'
 import * as patientsApi from '../api/patients'
 import { Spinner, ColumnFilter, Button } from '../components/ui'
+import { useToast } from '../contexts/ToastContext'
 import { formatDate } from '../utils/date'
 
 const helper = createColumnHelper<TelemetryReading>()
@@ -21,6 +22,7 @@ const hideSm = (id: string) =>
   ['signal_id', 'unit'].includes(id) ? 'hidden md:table-cell' : ''
 
 export function PatientHistory() {
+  const { showToast } = useToast()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [data, setData] = useState<TelemetryReading[]>([])
@@ -36,7 +38,7 @@ export function PatientHistory() {
     setLoading(true)
     patientsApi.getHistory(Number(id), page, perPage)
       .then(res => { setData(res.data); setTotal(res.total) })
-      .catch(console.error)
+      .catch(e => showToast(e instanceof Error ? e.message : 'Error al cargar historial'))
       .finally(() => setLoading(false))
   }, [id, page])
 
