@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::str::FromStr;
 use chrono::NaiveDateTime;
 use sqlx::{
     mysql::{MySqlConnectOptions, MySqlPoolOptions},
@@ -7,7 +9,6 @@ use sqlx::{
 };
 use sqlx_sqlserver::{Mssql, MssqlConnectOptions, MssqlPoolOptions};
 use tracing::log::LevelFilter;
-use std::str::FromStr;
 
 use crate::config::MonitorConfig;
 use crate::models::*;
@@ -480,7 +481,7 @@ impl DbPool {
     // --- Users ---
     pub async fn find_user_by_username(&self, username: &str) -> Result<Option<User>, sqlx::Error> {
         match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
                 Self::Sqlite(p) => sqlx::query_as("SELECT * FROM users WHERE username = ?").bind(username).fetch_optional(p).await,
             Self::Postgres(p) => sqlx::query_as("SELECT * FROM users WHERE username = $1").bind(username).fetch_optional(p).await,
             Self::Mysql(p) => sqlx::query_as("SELECT * FROM users WHERE username = ?").bind(username).fetch_optional(p).await,
@@ -490,7 +491,7 @@ impl DbPool {
 
     pub async fn find_user_by_id(&self, id: i64) -> Result<Option<User>, sqlx::Error> {
         match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
                 Self::Sqlite(p) => sqlx::query_as("SELECT * FROM users WHERE id = ?").bind(id).fetch_optional(p).await,
             Self::Postgres(p) => sqlx::query_as("SELECT * FROM users WHERE id = $1").bind(id).fetch_optional(p).await,
             Self::Mysql(p) => sqlx::query_as("SELECT * FROM users WHERE id = ?").bind(id).fetch_optional(p).await,
@@ -500,7 +501,7 @@ impl DbPool {
 
     pub async fn list_users(&self) -> Result<Vec<User>, sqlx::Error> {
         match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
                 Self::Sqlite(p) => sqlx::query_as("SELECT * FROM users ORDER BY id").fetch_all(p).await,
             Self::Postgres(p) => sqlx::query_as("SELECT * FROM users ORDER BY id").fetch_all(p).await,
             Self::Mysql(p) => sqlx::query_as("SELECT * FROM users ORDER BY id").fetch_all(p).await,
@@ -512,7 +513,7 @@ impl DbPool {
         let pw = crate::auth::hash_password(&req.password)
             .map_err(|e| sqlx::Error::Configuration(format!("Password hashing failed: {}", e).into()))?;
         match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
                 Self::Sqlite(p) => {
                 sqlx::query_as::<_, User>(
                     "INSERT INTO users (username, password, full_name, email, role, active) VALUES (?, ?, ?, ?, ?, 1) RETURNING *",
@@ -530,7 +531,7 @@ impl DbPool {
                     .bind(&req.username).bind(&pw).bind(&req.full_name).bind(&req.email).bind(&req.role)
                     .execute(p).await?;
                 let id: (i64,) = sqlx::query_as("SELECT LAST_INSERT_ID()").fetch_one(p).await?;
-                self.find_user_by_id(id.0).await.map(|u| u.unwrap())
+                self.find_user_by_id(id.0).await?.ok_or_else(|| sqlx::Error::Configuration("Created user not found after insert".into()))
             }
             Self::Mssql(p) => {
                 sqlx::query_as::<_, User>(
@@ -642,7 +643,7 @@ impl DbPool {
 
     pub async fn count_users(&self) -> Result<i64, sqlx::Error> {
         match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
                 Self::Sqlite(p) => sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(p).await,
             Self::Postgres(p) => sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(p).await,
             Self::Mysql(p) => sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(p).await,
@@ -715,7 +716,7 @@ impl DbPool {
 
     pub async fn find_patient_by_id(&self, id: i64) -> Result<Option<Patient>, sqlx::Error> {
         match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
             Self::Sqlite(p) => sqlx::query_as("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.id = ?").bind(id).fetch_optional(p).await,
             Self::Postgres(p) => sqlx::query_as("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.id = $1").bind(id).fetch_optional(p).await,
             Self::Mysql(p) => sqlx::query_as("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.id = ?").bind(id).fetch_optional(p).await,
@@ -757,8 +758,8 @@ impl DbPool {
             let ph: Vec<&str> = vec!["?"; sig_count];
             extra_where = format!(" AND te.signal_id IN ({})", ph.join(", "));
         }
-        if let Some(_) = date_from { extra_where.push_str(" AND te.timestamp >= ?"); }
-        if let Some(_) = date_to { extra_where.push_str(" AND te.timestamp <= ?"); }
+        if date_from.is_some() { extra_where.push_str(" AND te.timestamp >= ?"); }
+        if date_to.is_some() { extra_where.push_str(" AND te.timestamp <= ?"); }
 
         let where_ext = &extra_where;
 
@@ -903,7 +904,7 @@ impl DbPool {
 
     pub async fn create_machine_ip(&self, req: &CreateMachineIpRequest) -> Result<MachineIp, sqlx::Error> {
         match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
                 Self::Sqlite(p) => {
                 sqlx::query_as::<_, MachineIp>(
                     "INSERT INTO machine_ips (machine_id, ip_address, port, label) VALUES (?, ?, ?, ?) RETURNING *"
@@ -921,7 +922,7 @@ impl DbPool {
                     .bind(req.machine_id).bind(&req.ip_address).bind(req.port.unwrap_or(9001)).bind(&req.label)
                     .execute(p).await?;
                 let id: (i64,) = sqlx::query_as("SELECT LAST_INSERT_ID()").fetch_one(p).await?;
-                self.find_machine_ip_by_id(id.0).await.map(|o| o.unwrap())
+                self.find_machine_ip_by_id(id.0).await?.ok_or_else(|| sqlx::Error::Configuration("Created machine IP not found after insert".into()))
             }
             Self::Mssql(p) => {
                 sqlx::query_as::<_, MachineIp>(
@@ -934,7 +935,7 @@ impl DbPool {
 
     pub async fn find_machine_ip_by_id(&self, id: i64) -> Result<Option<MachineIp>, sqlx::Error> {
         match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
                 Self::Sqlite(p) => sqlx::query_as("SELECT * FROM machine_ips WHERE id = ?").bind(id).fetch_optional(p).await,
             Self::Postgres(p) => sqlx::query_as("SELECT * FROM machine_ips WHERE id = $1").bind(id).fetch_optional(p).await,
             Self::Mysql(p) => sqlx::query_as("SELECT * FROM machine_ips WHERE id = ?").bind(id).fetch_optional(p).await,
@@ -1048,8 +1049,8 @@ impl DbPool {
             let ph: Vec<&str> = vec!["?"; sig_count];
             extra_where = format!(" AND te.signal_id IN ({})", ph.join(", "));
         }
-        if let Some(_) = date_from { extra_where.push_str(" AND te.timestamp >= ?"); }
-        if let Some(_) = date_to { extra_where.push_str(" AND te.timestamp <= ?"); }
+        if date_from.is_some() { extra_where.push_str(" AND te.timestamp >= ?"); }
+        if date_to.is_some() { extra_where.push_str(" AND te.timestamp <= ?"); }
 
         let agg_base = "SELECT te.signal_id, s.internal_name, s.display_name, s.unit, AVG(CAST(te.physical_value AS REAL)) as average, MIN(CAST(te.physical_value AS REAL)) as minimum, MAX(CAST(te.physical_value AS REAL)) as maximum, COUNT(*) as count FROM telemetry te JOIN therapies t ON te.therapy_id = t.id JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = ? AND te.physical_value IS NOT NULL AND te.physical_value != ''";
         let batch_base = "SELECT te.signal_id, te.timestamp, te.physical_value FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = ? AND te.physical_value IS NOT NULL AND te.physical_value != ''";
@@ -1076,7 +1077,7 @@ impl DbPool {
             }
             Self::Postgres(p) => {
                 let safe_cast = "AVG(CASE WHEN te.physical_value ~ '^[0-9]+(\\.[0-9]+)?$' THEN te.physical_value::double precision END) as average, MIN(CASE WHEN te.physical_value ~ '^[0-9]+(\\.[0-9]+)?$' THEN te.physical_value::double precision END) as minimum, MAX(CASE WHEN te.physical_value ~ '^[0-9]+(\\.[0-9]+)?$' THEN te.physical_value::double precision END) as maximum";
-                let agg_pg = agg_base.replace("AVG(CAST(te.physical_value AS REAL)) as average, MIN(CAST(te.physical_value AS REAL)) as minimum, MAX(CAST(te.physical_value AS REAL)) as maximum", &safe_cast);
+                let agg_pg = agg_base.replace("AVG(CAST(te.physical_value AS REAL)) as average, MIN(CAST(te.physical_value AS REAL)) as minimum, MAX(CAST(te.physical_value AS REAL)) as maximum", safe_cast);
                 let mut pg_where = extra_where.clone();
                 let mut ph_idx = 2u32;
                 while pg_where.contains('?') {
@@ -1149,16 +1150,16 @@ impl DbPool {
             }
         };
 
-        let mut signals = Vec::new();
+        let mut values_by_signal: HashMap<i64, Vec<DashboardValue>> = HashMap::new();
+        for v in &all_values {
+            if let Some(ts) = v.timestamp
+                && let Some(val) = v.physical_value.as_deref().and_then(|s| s.parse::<f64>().ok()) {
+                    values_by_signal.entry(v.signal_id).or_default().push(DashboardValue { timestamp: ts, value: val });
+                }
+        }
+        let mut signals = Vec::with_capacity(raw_signals.len());
         for sig in raw_signals {
-            let values: Vec<DashboardValue> = all_values.iter()
-                .filter(|v| v.signal_id == sig.signal_id)
-                .filter_map(|v| {
-                    let ts = v.timestamp?;
-                    let val: f64 = v.physical_value.clone()?.parse().ok()?;
-                    Some(DashboardValue { timestamp: ts, value: val })
-                })
-                .collect();
+            let values = values_by_signal.remove(&sig.signal_id).unwrap_or_default();
             signals.push(DashboardSignal {
                 signal_id: sig.signal_id, internal_name: sig.internal_name,
                 display_name: sig.display_name, unit: sig.unit,
@@ -1200,16 +1201,16 @@ impl DbPool {
             ).bind(therapy_id).fetch_all(p).await?,
         };
 
-        let mut signals = Vec::new();
+        let mut values_by_signal: HashMap<i64, Vec<DashboardValue>> = HashMap::new();
+        for v in &all_values {
+            if let Some(ts) = v.timestamp
+                && let Some(val) = v.physical_value.as_deref().and_then(|s| s.parse::<f64>().ok()) {
+                    values_by_signal.entry(v.signal_id).or_default().push(DashboardValue { timestamp: ts, value: val });
+                }
+        }
+        let mut signals = Vec::with_capacity(raw_signals.len());
         for sig in raw_signals {
-            let values: Vec<DashboardValue> = all_values.iter()
-                .filter(|v| v.signal_id == sig.signal_id)
-                .filter_map(|v| {
-                    let ts = v.timestamp?;
-                    let val: f64 = v.physical_value.clone()?.parse().ok()?;
-                    Some(DashboardValue { timestamp: ts, value: val })
-                })
-                .collect();
+            let values = values_by_signal.remove(&sig.signal_id).unwrap_or_default();
             signals.push(DashboardSignal {
                 signal_id: sig.signal_id, internal_name: sig.internal_name,
                 display_name: sig.display_name, unit: sig.unit,
@@ -1228,13 +1229,13 @@ impl DbPool {
             Self::Sqlite(_) | Self::Mysql(_) => format!("{} LIMIT {}", sql, EXPORT_LIMIT),
             Self::Postgres(_) => format!("{} LIMIT ${}", sql.replace('?', "$1"), EXPORT_LIMIT),
             Self::Mssql(_) => format!("{} OFFSET 0 ROWS FETCH NEXT {} ROWS ONLY", sql.replace('?', "@P1"), EXPORT_LIMIT),
-            Self::NoDb => unreachable!(),
+            Self::NoDb => String::new(),
         };
         match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-            Self::Sqlite(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql.clone())).bind(patient_id).fetch_all(p).await,
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
             Self::Postgres(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
-            Self::Mysql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql.clone())).bind(patient_id).fetch_all(p).await,
+            Self::Mysql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
             Self::Mssql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
         }
     }
@@ -1246,13 +1247,13 @@ impl DbPool {
             Self::Sqlite(_) | Self::Mysql(_) => format!("{} LIMIT {}", sql, EXPORT_LIMIT),
             Self::Postgres(_) => format!("{} LIMIT ${}", sql.replace('?', "$1"), EXPORT_LIMIT),
             Self::Mssql(_) => format!("{} OFFSET 0 ROWS FETCH NEXT {} ROWS ONLY", sql.replace('?', "@P1"), EXPORT_LIMIT),
-            Self::NoDb => unreachable!(),
+            Self::NoDb => String::new(),
         };
         match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-            Self::Sqlite(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql.clone())).bind(therapy_id).fetch_all(p).await,
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
             Self::Postgres(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
-            Self::Mysql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql.clone())).bind(therapy_id).fetch_all(p).await,
+            Self::Mysql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
             Self::Mssql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
         }
     }
@@ -1480,7 +1481,7 @@ impl DbPool {
 
     pub async fn list_machines(&self) -> Result<Vec<Machine>, sqlx::Error> {
         match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
                 Self::Sqlite(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines ORDER BY serial_number").fetch_all(p).await,
             Self::Postgres(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines ORDER BY serial_number").fetch_all(p).await,
             Self::Mysql(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines ORDER BY serial_number").fetch_all(p).await,
@@ -1489,7 +1490,7 @@ impl DbPool {
     }
 
     pub async fn seed_admin(&self, password: &str) -> Result<(), sqlx::Error> {
-        let count = self.count_users().await.unwrap_or(0);
+        let count = self.count_users().await?;
         if count == 0 {
             let pw = crate::auth::hash_password(password)
                 .map_err(|e| sqlx::Error::Configuration(format!("Password hashing failed: {}", e).into()))?;
@@ -1519,10 +1520,10 @@ impl DbPool {
 
 // Raw structs for JOIN queries
 #[derive(Debug, Clone, sqlx::FromRow)]
-#[allow(dead_code)]
 struct TherapyRaw {
     pub id: i64,
     pub started_at: Option<NaiveDateTime>,
+    #[allow(dead_code)]
     pub patient_id: Option<i64>,
     pub machine_id: Option<i64>,
     pub status: Option<String>,

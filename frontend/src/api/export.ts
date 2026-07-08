@@ -3,16 +3,11 @@ import { parseApiError } from './errors'
 const API_BASE = '/api'
 
 async function fetchExport(patientIdOrTherapyId: number, type: 'patient' | 'therapy') {
-  const token = localStorage.getItem('monitor_token')
-  if (!token) return
-
   const path = type === 'patient'
     ? `${API_BASE}/patients/${patientIdOrTherapyId}/export`
     : `${API_BASE}/therapies/${patientIdOrTherapyId}/export`
 
-  const res = await fetch(path, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
+  const res = await fetch(path, { credentials: 'include' })
 
   if (!res.ok) {
     throw await parseApiError(res)

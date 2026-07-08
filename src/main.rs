@@ -13,7 +13,13 @@ async fn main() {
 
     dotenvy::dotenv().ok();
 
-    let config = monitor::config::MonitorConfig::from_env();
+    let config = match monitor::config::MonitorConfig::from_env() {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!("Configuration error: {}. See .env.example for required settings.", e);
+            std::process::exit(1);
+        }
+    };
 
     tracing::info!("Starting monitor at http://{}:{}", config.monitor_host, config.monitor_port);
 
@@ -49,20 +55,17 @@ async fn main() {
             .iter()
             .filter_map(|o| o.parse::<axum::http::HeaderValue>().ok())
             .collect();
-        if origins.is_empty() {
-            CorsLayer::permissive()
-        } else {
-            CorsLayer::new()
-                .allow_origin(AllowOrigin::list(origins))
-                .allow_methods([
-                    axum::http::Method::GET,
-                    axum::http::Method::POST,
-                    axum::http::Method::PUT,
-                    axum::http::Method::DELETE,
-                    axum::http::Method::OPTIONS,
-                ])
-                .allow_headers([axum::http::header::CONTENT_TYPE, axum::http::header::AUTHORIZATION])
-        }
+        CorsLayer::new()
+            .allow_origin(AllowOrigin::list(origins))
+            .allow_methods([
+                axum::http::Method::GET,
+                axum::http::Method::POST,
+                axum::http::Method::PUT,
+                axum::http::Method::DELETE,
+                axum::http::Method::OPTIONS,
+            ])
+            .allow_headers([axum::http::header::CONTENT_TYPE])
+            .allow_credentials(true)
     };
 
     let app = axum::Router::new()
@@ -71,18 +74,35 @@ async fn main() {
         .layer(cors)
         .layer(TraceLayer::new_for_http());
 
-    let addr = tokio::net::lookup_host(format!("{}:{}", config.monitor_host, config.monitor_port))
-        .await
-        .expect("Failed to resolve host")
-        .next()
-        .expect("No address resolved");
+    let addr = match tokio::net::lookup_host(format!("{}:{}", config.monitor_host, config.monitor_port)).await {
+        Ok(mut addrs) => match addrs.next() {
+            Some(a) => a,
+            None => {
+                tracing::error!("No address resolved for {}:{}", config.monitor_host, config.monitor_port);
+                std::process::exit(1);
+            }
+        },
+        Err(e) => {
+            tracing::error!("Failed to resolve host {}:{}: {}", config.monitor_host, config.monitor_port, e);
+            std::process::exit(1);
+        }
+    };
 
-    let listener = tokio::net::TcpListener::bind(addr).await.expect("Failed to bind");
+    let listener = match tokio::net::TcpListener::bind(addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::error!("Failed to bind to {}: {}", addr, e);
+            std::process::exit(1);
+        }
+    };
 
-    axum::serve(listener, app)
+    if let Err(e) = axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
-        .expect("Server failed");
+    {
+        tracing::error!("Server failed: {}", e);
+        std::process::exit(1);
+    }
 }
 
 #[cfg(feature = "ssr")]

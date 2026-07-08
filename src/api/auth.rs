@@ -1,5 +1,7 @@
 use axum::{
     extract::State,
+    http::{HeaderMap, HeaderValue, StatusCode},
+    response::IntoResponse,
     Extension, Json,
 };
 
@@ -10,7 +12,7 @@ use super::{AppError, AppState};
 pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
-) -> Result<Json<LoginResponse>, AppError> {
+) -> Result<impl IntoResponse, AppError> {
     let user = state.pool
         .find_user_by_username(&req.username)
         .await
@@ -33,10 +35,27 @@ pub async fn login(
     )
     .map_err(|_| AppError::TokenIssuance)?;
 
-    Ok(Json(LoginResponse {
-        token,
+    let max_age = state.config.jwt_expiration_hours * 3600;
+    let cookie = format!(
+        "monitor_token={}; HttpOnly; SameSite=Lax; Path=/api; Max-Age={}",
+        token, max_age
+    );
+
+    let mut headers = HeaderMap::new();
+    headers.insert(axum::http::header::SET_COOKIE, HeaderValue::from_str(&cookie).unwrap());
+
+    Ok((headers, Json(LoginResponse {
         user: UserResponse::from(user),
-    }))
+    })))
+}
+
+pub async fn logout() -> impl IntoResponse {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        axum::http::header::SET_COOKIE,
+        HeaderValue::from_static("monitor_token=; HttpOnly; SameSite=Lax; Path=/api; Max-Age=0"),
+    );
+    (headers, StatusCode::OK)
 }
 
 pub async fn me(

@@ -20,7 +20,7 @@ pub async fn export_patient(
     let data = state.pool.export_patient_telemetry(id).await?;
     let equivalences = state.pool.load_equivalences().await?;
     let filename = format!("patient_{}_history.xlsx", patient.patient_id_str);
-    let bytes = build_excel(&data, &equivalences).map_err(|e| AppError::Export(e))?;
+    let bytes = build_excel(&data, &equivalences).map_err(AppError::Export)?;
     Ok(ExportResponse { bytes, filename })
 }
 
@@ -32,7 +32,7 @@ pub async fn export_therapy(
     let data = state.pool.export_therapy_telemetry(id).await?;
     let equivalences = state.pool.load_equivalences().await?;
     let filename = format!("therapy_{}_data.xlsx", id);
-    let bytes = build_excel(&data, &equivalences).map_err(|e| AppError::Export(e))?;
+    let bytes = build_excel(&data, &equivalences).map_err(AppError::Export)?;
     Ok(ExportResponse { bytes, filename })
 }
 
@@ -64,19 +64,19 @@ fn build_excel(data: &[TelemetryExportRow], equivalences: &[AttributeEquivalence
         if let Some(ref name) = row.signal_name {
             sheet.write_string(r, 2, name).map_err(|e| e.to_string())?;
         } else if let Some(sig) = row.signal_id {
-            sheet.write_string(r, 2, &sig.to_string()).map_err(|e| e.to_string())?;
+            sheet.write_string(r, 2, sig.to_string()).map_err(|e| e.to_string())?;
         }
         let value_str = row.physical_value.as_deref().unwrap_or("");
         let resolved = row.signal_id
             .and_then(|sid| lookup_equivalence(sid, value_str, equivalences))
             .unwrap_or(value_str);
         if let Ok(n) = resolved.parse::<f64>() {
-            let _ = sheet.write_number(r, 3, n);
+            sheet.write_number(r, 3, n).map_err(|e| e.to_string())?;
         } else {
-            let _ = sheet.write_string(r, 3, resolved);
+            sheet.write_string(r, 3, resolved).map_err(|e| e.to_string())?;
         }
         if let Some(ref unit) = row.unit {
-            let _ = sheet.write_string(r, 4, unit);
+            sheet.write_string(r, 4, unit).map_err(|e| e.to_string())?;
         }
     }
 
@@ -90,6 +90,9 @@ pub struct ExportResponse {
 
 impl IntoResponse for ExportResponse {
     fn into_response(self) -> Response {
+        let safe_filename: String = self.filename.chars()
+            .filter(|c| c.is_alphanumeric() || *c == '.' || *c == '_' || *c == '-')
+            .collect();
         let headers = [
             (
                 axum::http::header::CONTENT_TYPE,
@@ -97,7 +100,7 @@ impl IntoResponse for ExportResponse {
             ),
             (
                 axum::http::header::CONTENT_DISPOSITION,
-                &format!("attachment; filename=\"{}\"", self.filename),
+                &format!("attachment; filename=\"{}\"", safe_filename),
             ),
         ];
         (

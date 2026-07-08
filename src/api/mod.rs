@@ -62,6 +62,10 @@ impl From<sqlx::Error> for AppError {
     }
 }
 
+fn extract_token_from_cookies(cookie_header: &str) -> Option<&str> {
+    cookie_header.split(';').filter_map(|c| c.trim().split_once('=')).find(|(k, _)| k.trim() == "monitor_token").map(|(_, v)| v)
+}
+
 pub async fn auth_middleware(
     State(state): State<AppState>,
     mut req: Request,
@@ -69,9 +73,9 @@ pub async fn auth_middleware(
 ) -> Result<Response, (StatusCode, Json<serde_json::Value>)> {
     let token = req
         .headers()
-        .get("Authorization")
+        .get(axum::http::header::COOKIE)
         .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
+        .and_then(extract_token_from_cookies)
         .ok_or((StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Missing token"}))))?;
 
     let claims = crate::auth::decode_token(token, &state.config.jwt_secret, &state.config.jwt_issuer)
@@ -84,6 +88,7 @@ pub async fn auth_middleware(
 pub fn create_router(state: AppState) -> Router {
     let public = Router::new()
         .route("/auth/login", post(auth::login))
+        .route("/auth/logout", post(auth::logout))
         .with_state(state.clone());
 
     let protected = Router::new()

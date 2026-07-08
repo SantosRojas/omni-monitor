@@ -6,7 +6,12 @@
 /static/favicon.svg
 /static/icons.svg
 /static/robots.txt
+*.wasm
 
 frontend/node_modules/
 frontend/dist/
+
+.vscode/
+.idea/
+*.log
 

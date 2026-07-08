@@ -19,7 +19,7 @@ export function LoginPage() {
     setLoading(true)
     try {
       const res = await authApi.login(username, password)
-      login(res.token, res.user)
+      login(res.user)
       navigate('/patients')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión')
