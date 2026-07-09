@@ -10,7 +10,8 @@ import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { MachineIpWithSerial, Machine } from '../types'
 import * as machinesApi from '../api/machines'
-import { Spinner, Modal, Badge, Select, ColumnFilter, Button, Input, Label, SearchInput } from '../components/ui'
+import { Modal, Badge, Select, Button, Input, Label } from '../components/ui'
+import { DataTable } from '../components/data-table'
 import { useToast } from '../contexts/ToastContext'
 
 const helper = createColumnHelper<MachineIpWithSerial>()
@@ -151,45 +152,13 @@ export function AdminMachineIps() {
         </Button>
       </div>
 
-      <div className="mb-4">
-        <SearchInput value={globalFilter ?? ''} onChange={e => setGlobalFilter(e.target.value)} placeholder="Buscar en toda la tabla..." />
-      </div>
-
-      {loading ? <Spinner message="Cargando..." /> : (
-        <div className="glass overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              {table.getHeaderGroups().map(hg => (
-                <tr key={hg.id}>
-                  {hg.headers.map(h => (
-                    <th key={h.id} onClick={h.column.getToggleSortingHandler()} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] cursor-pointer select-none ${hideSm(h.id)}`}>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1">
-                          {h.column.columnDef.header as string}
-                          {h.column.getIsSorted() && <span className="text-[10px]">{h.column.getIsSorted() === 'asc' ? '▲' : '▼'}</span>}
-                        </div>
-                        {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {table.getRowModel().rows.map(row => (
-                <tr key={row.id} className="hover:bg-(--surface-row-hover) transition-colors">
-                  {row.getVisibleCells().map(cell => (
-                    <td key={cell.id} className={`px-4 py-3 text-sm text-(--text-secondary) border-b border-[var(--border-subtle)] ${hideSm(cell.column.id)}`}>
-                      {cell.column.columnDef.cell ? (cell.column.columnDef.cell as any)(cell.getContext()) : cell.getValue() as string}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {data.length === 0 && <div className="text-center py-10 text-(--text-muted) text-sm">No hay IPs registradas</div>}
-        </div>
-      )}
+      <DataTable table={table} loading={loading}>
+        <DataTable.Search />
+        <DataTable.Grid
+          emptyMessage="No hay IPs registradas"
+          hideSm={hideSm}
+        />
+      </DataTable>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar IP' : 'Nueva IP'}>
         <div className="flex flex-col gap-4">

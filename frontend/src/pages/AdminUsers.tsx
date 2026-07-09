@@ -10,7 +10,8 @@ import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { UserResponse } from '../types'
 import * as usersApi from '../api/users'
-import { Spinner, Modal, Badge, Select, ColumnFilter, Button, Input, Label, SearchInput } from '../components/ui'
+import { Modal, Badge, Select, Button, Input, Label } from '../components/ui'
+import { DataTable } from '../components/data-table'
 import { useToast } from '../contexts/ToastContext'
 
 const helper = createColumnHelper<UserResponse>()
@@ -39,6 +40,8 @@ export function AdminUsers() {
   const [formFullName, setFormFullName] = useState('')
   const [formEmail, setFormEmail] = useState('')
   const [formRole, setFormRole] = useState('operator')
+
+  const [tableKey, setTableKey] = useState(0)
 
   const fetchData = () => {
     setLoading(true)
@@ -159,8 +162,13 @@ export function AdminUsers() {
     state: { sorting, columnFilters, globalFilter },
   })
 
+  const handleCloseModal = () => {
+    setModalOpen(false)
+    setTableKey(k => k + 1)
+  }
+
   return (
-    <div>
+    <div key={tableKey}>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
         <h2 className="text-lg md:text-xl font-bold text-(--text-primary)">Usuarios</h2>
         <Button variant="primary" size="sm" icon={<Plus className="w-4 h-4" />} onClick={openCreate}>
@@ -168,55 +176,23 @@ export function AdminUsers() {
         </Button>
       </div>
 
-      <div className="mb-4">
-        <SearchInput value={globalFilter ?? ''} onChange={e => setGlobalFilter(e.target.value)} placeholder="Buscar en toda la tabla..." />
-      </div>
+      <DataTable table={table} loading={loading}>
+        <DataTable.Search />
+        <DataTable.Grid
+          emptyMessage="No hay usuarios"
+          hideSm={hideSm}
+        />
+      </DataTable>
 
-      {loading ? <Spinner message="Cargando usuarios..." /> : (
-        <div className="glass overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              {table.getHeaderGroups().map(hg => (
-                <tr key={hg.id}>
-                  {hg.headers.map(h => (
-                    <th key={h.id} onClick={h.column.getToggleSortingHandler()} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] cursor-pointer select-none ${hideSm(h.id)}`}>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1">
-                          {h.column.columnDef.header as string}
-                          {h.column.getIsSorted() && <span className="text-[10px]">{h.column.getIsSorted() === 'asc' ? '▲' : '▼'}</span>}
-                        </div>
-                        {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {table.getRowModel().rows.map(row => (
-                <tr key={row.id} className="hover:bg-(--surface-row-hover) transition-colors">
-                  {row.getVisibleCells().map(cell => (
-                    <td key={cell.id} className={`px-4 py-3 text-sm text-(--text-secondary) border-b border-[var(--border-subtle)] ${hideSm(cell.column.id)}`}>
-                      {cell.column.columnDef.cell ? (cell.column.columnDef.cell as any)(cell.getContext()) : cell.getValue() as string}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {data.length === 0 && <div className="text-center py-10 text-(--text-muted) text-sm">No hay usuarios</div>}
-        </div>
-      )}
-
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar Usuario' : 'Nuevo Usuario'}>
-        <div className="flex flex-col gap-4">
+      <Modal open={modalOpen} onClose={handleCloseModal} title={editing ? 'Editar Usuario' : 'Nuevo Usuario'}>
+        <form onSubmit={e => e.preventDefault()} className="flex flex-col gap-4">
           <div>
             <Label>Usuario</Label>
-            <Input value={formUsername} onChange={e => setFormUsername(e.target.value)} disabled={!!editing} />
+            <Input autoComplete="username" value={formUsername} onChange={e => setFormUsername(e.target.value)} disabled={!!editing} />
           </div>
           <div>
             <Label>Contraseña {editing ? '(dejar vacío para no cambiar)' : ''}</Label>
-            <Input type="password" value={formPassword} onChange={e => setFormPassword(e.target.value)} />
+            <Input type="password" autoComplete="new-password" value={formPassword} onChange={e => setFormPassword(e.target.value)} />
           </div>
           <div>
             <Label>Nombre Completo</Label>
@@ -240,10 +216,10 @@ export function AdminUsers() {
             />
           </div>
           <div className="flex justify-end gap-2 mt-2">
-            <Button variant="secondary" size="md" onClick={() => setModalOpen(false)}>Cancelar</Button>
+            <Button variant="secondary" size="md" onClick={handleCloseModal}>Cancelar</Button>
             <Button variant="primary" size="md" onClick={handleSave}>Guardar</Button>
           </div>
-        </div>
+        </form>
       </Modal>
     </div>
   )

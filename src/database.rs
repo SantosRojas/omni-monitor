@@ -7,11 +7,21 @@ use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     AssertSqlSafe, ConnectOptions, MySql, Pool, Sqlite,
 };
-use sqlx_sqlserver::{Mssql, MssqlConnectOptions, MssqlPoolOptions};
 use tracing::log::LevelFilter;
 
 use crate::config::MonitorConfig;
 use crate::models::*;
+
+#[cfg(feature = "ssr")]
+use bb8::Pool as Bb8Pool;
+#[cfg(feature = "ssr")]
+use bb8_tiberius::ConnectionManager;
+#[cfg(feature = "ssr")]
+use tiberius::{AuthMethod, Client, Config, Row};
+#[cfg(feature = "ssr")]
+use tokio::net::TcpStream;
+#[cfg(feature = "ssr")]
+use tokio_util::compat::TokioAsyncWriteCompatExt;
 
 #[derive(Debug, Clone)]
 pub enum DbPool {
@@ -19,7 +29,336 @@ pub enum DbPool {
     Sqlite(Pool<Sqlite>),
     Postgres(Pool<sqlx::Postgres>),
     Mysql(Pool<MySql>),
-    Mssql(Pool<Mssql>),
+    Mssql(MssqlDb),
+}
+
+#[derive(Debug, Clone)]
+pub struct MssqlDb {
+    pool: Bb8Pool<ConnectionManager>,
+}
+
+trait TryFromRow: Sized {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error>;
+}
+
+impl MssqlDb {
+    pub fn new(pool: Bb8Pool<ConnectionManager>) -> Self {
+        Self { pool }
+    }
+
+    async fn conn(&self) -> Result<bb8::PooledConnection<'_, ConnectionManager>, sqlx::Error> {
+        self.pool.get().await.map_err(|e| sqlx::Error::Protocol(e.to_string()))
+    }
+
+    async fn query_one<T: TryFromRow>(&self, sql: &str, params: &[&dyn tiberius::ToSql]) -> Result<Option<T>, sqlx::Error> {
+        let mut conn = self.conn().await?;
+        let stream = conn.query(sql, params).await.map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        let row = stream.into_row().await.map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        row.as_ref().map(|r| T::try_from_row(r)).transpose()
+    }
+
+    async fn query_all<T: TryFromRow>(&self, sql: &str, params: &[&dyn tiberius::ToSql]) -> Result<Vec<T>, sqlx::Error> {
+        let mut conn = self.conn().await?;
+        let stream = conn.query(sql, params).await.map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        let rows = stream.into_first_result().await.map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        rows.iter().map(|r| T::try_from_row(r)).collect()
+    }
+
+    async fn execute(&self, sql: &str, params: &[&dyn tiberius::ToSql]) -> Result<u64, sqlx::Error> {
+        let mut conn = self.conn().await?;
+        conn.execute(sql, params).await.map_err(|e| sqlx::Error::Protocol(e.to_string())).map(|r| r.total())
+    }
+
+    async fn simple_query(&self, sql: &str) -> Result<(), sqlx::Error> {
+        let mut conn = self.conn().await?;
+        conn.simple_query(sql).await.map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn query_scalar<T: for<'a> tiberius::FromSql<'a>>(&self, sql: &str, params: &[&dyn tiberius::ToSql]) -> Result<T, sqlx::Error> {
+        let mut conn = self.conn().await?;
+        let stream = conn.query(sql, params).await.map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        let row = stream.into_row().await.map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        row.as_ref()
+            .and_then(|r| r.get::<T, usize>(0))
+            .ok_or_else(|| sqlx::Error::Protocol("expected a scalar value but got NULL or no rows".into()))
+    }
+}
+
+// --- Tiberius row helpers ---
+fn col_val<'a, T: tiberius::FromSql<'a>>(row: &'a Row, name: &str) -> Result<T, sqlx::Error> {
+    match row.try_get::<T, &str>(name) {
+        Ok(Some(v)) => Ok(v),
+        Ok(None) => Err(sqlx::Error::Protocol(format!("null column '{}'", name))),
+        Err(e) => Err(sqlx::Error::Protocol(format!("column '{}': {}", name, e))),
+    }
+}
+
+fn col_opt<'a, T: tiberius::FromSql<'a>>(row: &'a Row, name: &str) -> Result<Option<T>, sqlx::Error> {
+    match row.try_get::<T, &str>(name) {
+        Ok(v) => Ok(v),
+        Err(e) => Err(sqlx::Error::Protocol(format!("column '{}': {}", name, e))),
+    }
+}
+
+fn col_str(row: &Row, name: &str) -> Result<String, sqlx::Error> {
+    match row.try_get::<&str, &str>(name) {
+        Ok(Some(s)) => Ok(s.to_string()),
+        Ok(None) => Err(sqlx::Error::Protocol(format!("null column '{}'", name))),
+        Err(e) => Err(sqlx::Error::Protocol(format!("column '{}': {}", name, e))),
+    }
+}
+
+fn col_opt_str(row: &Row, name: &str) -> Result<Option<String>, sqlx::Error> {
+    match row.try_get::<&str, &str>(name) {
+        Ok(v) => Ok(v.map(|s| s.to_string())),
+        Err(e) => Err(sqlx::Error::Protocol(format!("column '{}': {}", name, e))),
+    }
+}
+
+fn col_bool<'a>(row: &'a Row, name: &str) -> Result<bool, sqlx::Error> {
+    if let Ok(Some(v)) = row.try_get::<i32, &str>(name) {
+        Ok(v != 0)
+    } else if let Ok(Some(v)) = row.try_get::<bool, &str>(name) {
+        Ok(v)
+    } else {
+        Err(sqlx::Error::Protocol(format!("missing column '{}'", name)))
+    }
+}
+
+#[allow(dead_code)]
+fn col_opt_bool<'a>(row: &'a Row, name: &str) -> Result<Option<bool>, sqlx::Error> {
+    match row.try_get::<i32, &str>(name) {
+        Ok(Some(v)) => Ok(Some(v != 0)),
+        Ok(None) => Ok(None),
+        Err(_) => match row.try_get::<bool, &str>(name) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(sqlx::Error::Protocol(format!("column '{}': {}", name, e))),
+        },
+    }
+}
+
+fn col_opt_dt<'a>(row: &'a Row, name: &str) -> Result<Option<NaiveDateTime>, sqlx::Error> {
+    match row.try_get::<NaiveDateTime, &str>(name) {
+        Ok(v) => Ok(v),
+        Err(e) => Err(sqlx::Error::Protocol(format!("column '{}': {}", name, e))),
+    }
+}
+
+fn col_i64(row: &Row, name: &str) -> Result<i64, sqlx::Error> {
+    if let Ok(Some(v)) = row.try_get::<i32, &str>(name) {
+        Ok(v as i64)
+    } else if let Ok(Some(v)) = row.try_get::<i64, &str>(name) {
+        Ok(v)
+    } else {
+        Err(sqlx::Error::Protocol(format!("missing column '{}'", name)))
+    }
+}
+
+fn col_opt_i64(row: &Row, name: &str) -> Result<Option<i64>, sqlx::Error> {
+    if let Ok(Some(v)) = row.try_get::<i32, &str>(name) {
+        Ok(Some(v as i64))
+    } else if let Ok(Some(v)) = row.try_get::<i64, &str>(name) {
+        Ok(Some(v))
+    } else {
+        Ok(None)
+    }
+}
+
+// --- TryFromRow implementations for tiberius ---
+impl TryFromRow for User {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            id: col_i64(row, "id")?,
+            username: col_str(row, "username")?,
+            password: col_str(row, "password")?,
+            full_name: col_str(row, "full_name")?,
+            email: col_str(row, "email")?,
+            role: col_str(row, "role")?,
+            active: col_bool(row, "active").unwrap_or(false),
+            created_at: col_opt::<NaiveDateTime>(row, "created_at")?,
+        })
+    }
+}
+
+impl TryFromRow for Patient {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            id: col_i64(row, "id")?,
+            patient_id_str: col_str(row, "patient_id_str")?,
+            created_at: col_opt::<NaiveDateTime>(row, "created_at")?,
+            therapy_start: col_opt::<NaiveDateTime>(row, "therapy_start")?,
+            therapy_end: col_opt::<NaiveDateTime>(row, "therapy_end")?,
+            active_therapy_count: col_opt_i64(row, "active_therapy_count")?,
+            completed_therapy_count: col_opt_i64(row, "completed_therapy_count")?,
+        })
+    }
+}
+
+impl TryFromRow for Machine {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            id: col_i64(row, "id")?,
+            serial_number: col_str(row, "serial_number")?,
+            software_version: col_str(row, "software_version")?,
+            registered_at: col_opt_dt(row, "registered_at")?,
+            status: col_opt_str(row, "status")?,
+        })
+    }
+}
+
+impl TryFromRow for MachineIp {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            id: col_i64(row, "id")?,
+            machine_id: col_i64(row, "machine_id")?,
+            ip_address: col_str(row, "ip_address")?,
+            port: col_val::<i32>(row, "port").ok(),
+            label: col_opt_str(row, "label")?,
+            is_active: col_bool(row, "is_active").unwrap_or(true),
+            created_at: col_opt_dt(row, "created_at")?,
+            updated_at: col_opt_dt(row, "updated_at")?,
+        })
+    }
+}
+
+impl TryFromRow for Signal {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            id: col_i64(row, "id")?,
+            internal_name: col_str(row, "internal_name")?,
+            display_name: col_opt_str(row, "display_name")?,
+            unit: col_opt_str(row, "unit")?,
+        })
+    }
+}
+
+impl TryFromRow for AttributeEquivalence {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            signal_id: col_i64(row, "signal_id")?,
+            numeric_value: col_val::<f64>(row, "numeric_value")?,
+            display_name: col_str(row, "display_name")?,
+        })
+    }
+}
+
+impl TryFromRow for EquivalenceResponse {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            signal_id: col_i64(row, "signal_id")?,
+            internal_name: col_str(row, "internal_name")?,
+            numeric_value: col_val::<f64>(row, "numeric_value")?,
+            display_name: col_str(row, "display_name")?,
+        })
+    }
+}
+
+impl TryFromRow for TelemetryReading {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            id: col_i64(row, "id")?,
+            timestamp: col_opt_dt(row, "timestamp")?,
+            therapy_id: col_opt_i64(row, "therapy_id")?,
+            signal_id: col_opt_i64(row, "signal_id")?,
+            raw_value: col_opt_i64(row, "raw_value")?,
+            physical_value: col_opt_str(row, "physical_value")?,
+            unit: col_opt_str(row, "unit")?,
+        })
+    }
+}
+
+impl TryFromRow for TelemetryExportRow {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            id: col_i64(row, "id")?,
+            timestamp: col_opt_dt(row, "timestamp")?,
+            signal_id: col_opt_i64(row, "signal_id")?,
+            physical_value: col_opt_str(row, "physical_value")?,
+            unit: col_opt_str(row, "unit")?,
+            signal_name: col_opt_str(row, "signal_name")?,
+        })
+    }
+}
+
+impl TryFromRow for TherapyRaw {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            id: col_i64(row, "id")?,
+            started_at: col_opt_dt(row, "started_at")?,
+            patient_id: col_opt_i64(row, "patient_id")?,
+            machine_id: col_opt_i64(row, "machine_id")?,
+            status: col_opt_str(row, "status")?,
+            ended_at: col_opt_dt(row, "ended_at")?,
+            serial_number: col_opt_str(row, "serial_number")?,
+            software_version: col_opt_str(row, "software_version")?,
+            ip_address: col_opt_str(row, "ip_address")?,
+            port: col_val::<i32>(row, "port").ok(),
+        })
+    }
+}
+
+impl TryFromRow for ActiveDeviceRaw {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            ip_address: col_str(row, "ip_address")?,
+            port: col_val::<i32>(row, "port").ok(),
+            serial_number: col_opt_str(row, "serial_number")?,
+        })
+    }
+}
+
+impl TryFromRow for MachineIpWithSerialRaw {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            id: col_i64(row, "id")?,
+            machine_id: col_i64(row, "machine_id")?,
+            ip_address: col_str(row, "ip_address")?,
+            port: col_val::<i32>(row, "port").ok(),
+            label: col_opt_str(row, "label")?,
+            is_active: col_bool(row, "is_active").unwrap_or(true),
+            created_at: col_opt_dt(row, "created_at")?,
+            updated_at: col_opt_dt(row, "updated_at")?,
+            serial_number: col_opt_str(row, "serial_number")?,
+        })
+    }
+}
+
+impl TryFromRow for DashboardSignalRaw {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            signal_id: col_i64(row, "signal_id")?,
+            internal_name: col_str(row, "internal_name")?,
+            display_name: col_opt_str(row, "display_name")?,
+            unit: col_opt_str(row, "unit")?,
+            average: col_val::<f64>(row, "average").ok(),
+            minimum: col_val::<f64>(row, "minimum").ok(),
+            maximum: col_val::<f64>(row, "maximum").ok(),
+            count: col_i64(row, "count")?,
+        })
+    }
+}
+
+impl TryFromRow for DashboardValueWithSignal {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            signal_id: col_i64(row, "signal_id")?,
+            timestamp: col_opt_dt(row, "timestamp")?,
+            physical_value: col_opt_str(row, "physical_value")?,
+        })
+    }
+}
+
+impl TryFromRow for (i64,) {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok((col_i64(row, "")?,)) // single column, use index 0
+    }
+}
+
+macro_rules! tp {
+    ($($x:expr),* $(,)?) => {
+        &[$(&$x as &dyn tiberius::ToSql),*] as &[&dyn tiberius::ToSql]
+    };
 }
 
 impl DbPool {
@@ -349,19 +688,29 @@ impl DbPool {
                 Ok(Self::Mysql(pool))
             }
             "mssql" | "sqlsrv" => {
-                let opts = MssqlConnectOptions::new()
-                    .set_host(&config.db_host)
-                    .set_port(config.db_port)
-                    .set_username(&config.db_username)
-                    .set_password(&config.db_password)
-                    .set_database(&config.db_database)
-                    .trust_certificate()
-                    .log_statements(LevelFilter::Debug);
-                let pool = MssqlPoolOptions::new()
-                    .max_connections(10)
-                    .connect_with(opts)
-                    .await?;
-                sqlx::query(
+                let mut tconfig = Config::new();
+                tconfig.host(&config.db_host);
+                tconfig.port(config.db_port);
+                tconfig.authentication(AuthMethod::sql_server(&config.db_username, &config.db_password));
+                tconfig.database(&config.db_database);
+                tconfig.trust_cert();
+                let tcp = TcpStream::connect(tconfig.get_addr())
+                    .await
+                    .map_err(|e| sqlx::Error::Configuration(format!("tiberius TCP connect failed: {}", e).into()))?;
+                tcp.set_nodelay(true)
+                    .map_err(|e| sqlx::Error::Configuration(format!("tiberius set_nodelay failed: {}", e).into()))?;
+                let _client = Client::connect(tconfig.clone(), tcp.compat_write())
+                    .await
+                    .map_err(|e| sqlx::Error::Configuration(format!("tiberius connect failed: {:?}", e).into()))?;
+                drop(_client);
+                let mgr = ConnectionManager::new(tconfig);
+                let pool = Bb8Pool::builder()
+                    .max_size(10)
+                    .build(mgr)
+                    .await
+                    .map_err(|e| sqlx::Error::Configuration(format!("bb8 pool build failed: {}", e).into()))?;
+                let mssql = MssqlDb::new(pool);
+                mssql.simple_query(
                     "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'users')
                         CREATE TABLE users (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
@@ -373,8 +722,8 @@ impl DbPool {
                             active BIT NOT NULL DEFAULT 1,
                             created_at DATETIME2 DEFAULT CURRENT_TIMESTAMP
                         )",
-                ).execute(&pool).await?;
-                sqlx::query(
+                ).await?;
+                mssql.simple_query(
                     "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'machines')
                         CREATE TABLE machines (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
@@ -383,8 +732,8 @@ impl DbPool {
                             registered_at DATETIME2,
                             status NVARCHAR(50)
                         )",
-                ).execute(&pool).await?;
-                sqlx::query(
+                ).await?;
+                mssql.simple_query(
                     "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'signals')
                         CREATE TABLE signals (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
@@ -392,8 +741,8 @@ impl DbPool {
                             display_name NVARCHAR(255),
                             unit NVARCHAR(50)
                         )",
-                ).execute(&pool).await?;
-                sqlx::query(
+                ).await?;
+                mssql.simple_query(
                     "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'attribute_equivalences')
                         CREATE TABLE attribute_equivalences (
                             signal_id BIGINT NOT NULL,
@@ -401,16 +750,16 @@ impl DbPool {
                             display_name NVARCHAR(255) NOT NULL,
                             PRIMARY KEY (signal_id, numeric_value)
                         )",
-                ).execute(&pool).await?;
-                sqlx::query(
+                ).await?;
+                mssql.simple_query(
                     "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'patients')
                         CREATE TABLE patients (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
                             patient_id_str NVARCHAR(255) NOT NULL,
                             created_at DATETIME2
                         )",
-                ).execute(&pool).await?;
-                sqlx::query(
+                ).await?;
+                mssql.simple_query(
                     "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'therapies')
                         CREATE TABLE therapies (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
@@ -420,8 +769,8 @@ impl DbPool {
                             status NVARCHAR(50),
                             ended_at DATETIME2
                         )",
-                ).execute(&pool).await?;
-                sqlx::query(
+                ).await?;
+                mssql.simple_query(
                     "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'telemetry')
                         CREATE TABLE telemetry (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
@@ -432,8 +781,8 @@ impl DbPool {
                             physical_value NVARCHAR(MAX),
                             unit NVARCHAR(50)
                         )",
-                ).execute(&pool).await?;
-                sqlx::query(
+                ).await?;
+                mssql.simple_query(
                     "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'machine_ips')
                         CREATE TABLE machine_ips (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
@@ -445,20 +794,16 @@ impl DbPool {
                             created_at DATETIME2 DEFAULT CURRENT_TIMESTAMP,
                             updated_at DATETIME2 DEFAULT CURRENT_TIMESTAMP
                         )",
-                )
-                .execute(&pool)
-                .await?;
-                sqlx::query(
+                ).await?;
+                mssql.simple_query(
                     "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_machine_ips_machine' AND object_id = OBJECT_ID('machine_ips'))
                         CREATE INDEX idx_machine_ips_machine ON machine_ips(machine_id)",
-                )
-                .execute(&pool).await?;
-                sqlx::query(
+                ).await?;
+                mssql.simple_query(
                     "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_machine_ips_active' AND object_id = OBJECT_ID('machine_ips'))
                         CREATE INDEX idx_machine_ips_active ON machine_ips(machine_id, is_active)",
-                )
-                .execute(&pool).await?;
-                sqlx::query(
+                ).await?;
+                mssql.simple_query(
                     "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'equivalence_deletion_log')
                         CREATE TABLE equivalence_deletion_log (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
@@ -468,9 +813,8 @@ impl DbPool {
                             deletion_reason NVARCHAR(MAX) NOT NULL,
                             deleted_at DATETIME2 DEFAULT CURRENT_TIMESTAMP
                         )",
-                )
-                .execute(&pool).await?;
-                Ok(Self::Mssql(pool))
+                ).await?;
+                Ok(Self::Mssql(mssql))
             }
             other => Err(sqlx::Error::Configuration(
                 format!("Unsupported DB_CONNECTION: {}. Supported: sqlite, postgres, mysql, mssql", other).into(),
@@ -485,7 +829,7 @@ impl DbPool {
                 Self::Sqlite(p) => sqlx::query_as("SELECT * FROM users WHERE username = ?").bind(username).fetch_optional(p).await,
             Self::Postgres(p) => sqlx::query_as("SELECT * FROM users WHERE username = $1").bind(username).fetch_optional(p).await,
             Self::Mysql(p) => sqlx::query_as("SELECT * FROM users WHERE username = ?").bind(username).fetch_optional(p).await,
-            Self::Mssql(p) => sqlx::query_as("SELECT * FROM users WHERE username = @P1").bind(username).fetch_optional(p).await,
+            Self::Mssql(db) => db.query_one::<User>("SELECT * FROM users WHERE username = @P1", tp!(username)).await,
         }
     }
 
@@ -495,7 +839,7 @@ impl DbPool {
                 Self::Sqlite(p) => sqlx::query_as("SELECT * FROM users WHERE id = ?").bind(id).fetch_optional(p).await,
             Self::Postgres(p) => sqlx::query_as("SELECT * FROM users WHERE id = $1").bind(id).fetch_optional(p).await,
             Self::Mysql(p) => sqlx::query_as("SELECT * FROM users WHERE id = ?").bind(id).fetch_optional(p).await,
-            Self::Mssql(p) => sqlx::query_as("SELECT * FROM users WHERE id = @P1").bind(id).fetch_optional(p).await,
+            Self::Mssql(db) => db.query_one::<User>("SELECT * FROM users WHERE id = @P1", tp!(id)).await,
         }
     }
 
@@ -505,7 +849,7 @@ impl DbPool {
                 Self::Sqlite(p) => sqlx::query_as("SELECT * FROM users ORDER BY id").fetch_all(p).await,
             Self::Postgres(p) => sqlx::query_as("SELECT * FROM users ORDER BY id").fetch_all(p).await,
             Self::Mysql(p) => sqlx::query_as("SELECT * FROM users ORDER BY id").fetch_all(p).await,
-            Self::Mssql(p) => sqlx::query_as("SELECT * FROM users ORDER BY id").fetch_all(p).await,
+            Self::Mssql(db) => db.query_all::<User>("SELECT * FROM users ORDER BY id", &[]).await,
         }
     }
 
@@ -533,12 +877,10 @@ impl DbPool {
                 let id: (i64,) = sqlx::query_as("SELECT LAST_INSERT_ID()").fetch_one(p).await?;
                 self.find_user_by_id(id.0).await?.ok_or_else(|| sqlx::Error::Configuration("Created user not found after insert".into()))
             }
-            Self::Mssql(p) => {
-                sqlx::query_as::<_, User>(
-                    "INSERT INTO users (username, password, full_name, email, role, active) OUTPUT INSERTED.* VALUES (@P1, @P2, @P3, @P4, @P5, 1)"
-                ).bind(&req.username).bind(&pw).bind(&req.full_name).bind(&req.email).bind(&req.role)
-                .fetch_one(p).await
-            }
+            Self::Mssql(db) => db.query_one::<User>(
+                "INSERT INTO users (username, password, full_name, email, role, active) OUTPUT INSERTED.* VALUES (@P1, @P2, @P3, @P4, @P5, 1)",
+                tp!(req.username, pw, req.full_name, req.email, req.role)
+            ).await?.ok_or_else(|| sqlx::Error::Protocol("INSERT OUTPUT returned no rows".into())),
         }
     }
 
@@ -596,7 +938,7 @@ impl DbPool {
                 q.bind(id).execute(p).await?;
             }
             Self::Mysql(p) => { build_update!(p, "?"); }
-            Self::Mssql(p) => {
+            Self::Mssql(db) => {
                 let mut sets: Vec<String> = Vec::new();
                 let mut idx = 0u32;
                 if pw.is_some() { idx += 1; sets.push(format!("password = @P{}", idx)); }
@@ -606,13 +948,19 @@ impl DbPool {
                 if req.active.is_some() { idx += 1; sets.push(format!("active = @P{}", idx)); }
                 idx += 1;
                 let sql = format!("UPDATE users SET {} WHERE id = @P{}", sets.join(", "), idx);
-                let mut q = sqlx::query(AssertSqlSafe(sql));
-                if let Some(ref v) = pw { q = q.bind(v.as_str()); }
-                if let Some(ref v) = req.full_name { q = q.bind(v.as_str()); }
-                if let Some(ref v) = req.email { q = q.bind(v.as_str()); }
-                if let Some(ref v) = req.role { q = q.bind(v.as_str()); }
-                if let Some(v) = req.active { q = q.bind(if v { 1i32 } else { 0i32 }); }
-                q.bind(id).execute(p).await?;
+                let pw_str: &str = pw.as_deref().unwrap_or("");
+                let fn_str: &str = req.full_name.as_deref().unwrap_or("");
+                let email_str: &str = req.email.as_deref().unwrap_or("");
+                let role_str: &str = req.role.as_deref().unwrap_or("");
+                let active_val: Option<i64> = req.active.map(|v| if v { 1i64 } else { 0i64 });
+                let mut params: Vec<&dyn tiberius::ToSql> = Vec::new();
+                if pw.is_some() { params.push(&pw_str as &dyn tiberius::ToSql); }
+                if req.full_name.is_some() { params.push(&fn_str as &dyn tiberius::ToSql); }
+                if req.email.is_some() { params.push(&email_str as &dyn tiberius::ToSql); }
+                if req.role.is_some() { params.push(&role_str as &dyn tiberius::ToSql); }
+                if let Some(ref v) = active_val { params.push(v as &dyn tiberius::ToSql); }
+                params.push(&id as &dyn tiberius::ToSql);
+                db.execute(&sql, &params).await?;
             }
         }
         self.find_user_by_id(id).await
@@ -633,10 +981,7 @@ impl DbPool {
                 let r = sqlx::query("DELETE FROM users WHERE id = ?").bind(id).execute(p).await?;
                 r.rows_affected()
             }
-            Self::Mssql(p) => {
-                let r = sqlx::query("DELETE FROM users WHERE id = @P1").bind(id).execute(p).await?;
-                r.rows_affected()
-            }
+            Self::Mssql(db) => db.execute("DELETE FROM users WHERE id = @P1", tp!(id)).await?,
         };
         Ok(affected > 0)
     }
@@ -647,7 +992,7 @@ impl DbPool {
                 Self::Sqlite(p) => sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(p).await,
             Self::Postgres(p) => sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(p).await,
             Self::Mysql(p) => sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(p).await,
-            Self::Mssql(p) => sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(p).await,
+            Self::Mssql(db) => db.query_scalar::<i32>("SELECT COUNT(*) FROM users", &[]).await.map(|v| v as i64),
         }
     }
 
@@ -660,7 +1005,7 @@ impl DbPool {
                 Self::Sqlite(p) => sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM patients WHERE patient_id_str LIKE ?").bind(format!("%{}%", s)).fetch_one(p).await?,
                 Self::Postgres(p) => sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM patients WHERE patient_id_str ILIKE $1").bind(format!("%{}%", s)).fetch_one(p).await?,
                 Self::Mysql(p) => sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM patients WHERE patient_id_str LIKE ?").bind(format!("%{}%", s)).fetch_one(p).await?,
-                Self::Mssql(p) => sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM patients WHERE patient_id_str LIKE @P1").bind(format!("%{}%", s)).fetch_one(p).await?,
+                Self::Mssql(db) => db.query_scalar::<i32>("SELECT COUNT(*) FROM patients WHERE patient_id_str LIKE @P1", tp!(format!("%{}%", s))).await.map(|v| v as i64)?,
             }
         } else {
             match self {
@@ -668,7 +1013,7 @@ impl DbPool {
                 Self::Sqlite(p) => sqlx::query_scalar("SELECT COUNT(*) FROM patients").fetch_one(p).await?,
                 Self::Postgres(p) => sqlx::query_scalar("SELECT COUNT(*) FROM patients").fetch_one(p).await?,
                 Self::Mysql(p) => sqlx::query_scalar("SELECT COUNT(*) FROM patients").fetch_one(p).await?,
-                Self::Mssql(p) => sqlx::query_scalar("SELECT COUNT(*) FROM patients").fetch_one(p).await?,
+                Self::Mssql(db) => db.query_scalar::<i32>("SELECT COUNT(*) FROM patients", &[]).await.map(|v| v as i64)?,
             }
         };
 
@@ -701,13 +1046,15 @@ impl DbPool {
                         .bind(per_page).bind(offset).fetch_all(p).await?
                 }
             }
-            Self::Mssql(p) => {
+            Self::Mssql(db) => {
+                let sql = "SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p";
                 if let Some(s) = search {
-                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str LIKE @P1 ORDER BY active_therapy_count DESC, p.id DESC OFFSET @P2 ROWS FETCH NEXT @P3 ROWS ONLY")
-                        .bind(format!("%{}%", s)).bind(offset).bind(per_page).fetch_all(p).await?
+                    let like = format!("%{}%", s);
+                    let full_sql = format!("{} WHERE p.patient_id_str LIKE @P1 ORDER BY active_therapy_count DESC, p.id DESC OFFSET @P2 ROWS FETCH NEXT @P3 ROWS ONLY", sql);
+                    db.query_all::<Patient>(&full_sql, tp!(like, offset, per_page)).await?
                 } else {
-                    sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY active_therapy_count DESC, p.id DESC OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY")
-                        .bind(offset).bind(per_page).fetch_all(p).await?
+                    let full_sql = format!("{} ORDER BY active_therapy_count DESC, p.id DESC OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY", sql);
+                    db.query_all::<Patient>(&full_sql, tp!(offset, per_page)).await?
                 }
             }
         };
@@ -720,7 +1067,7 @@ impl DbPool {
             Self::Sqlite(p) => sqlx::query_as("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.id = ?").bind(id).fetch_optional(p).await,
             Self::Postgres(p) => sqlx::query_as("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.id = $1").bind(id).fetch_optional(p).await,
             Self::Mysql(p) => sqlx::query_as("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.id = ?").bind(id).fetch_optional(p).await,
-            Self::Mssql(p) => sqlx::query_as("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.id = @P1").bind(id).fetch_optional(p).await,
+            Self::Mssql(db) => db.query_one::<Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.id = @P1", tp!(id)).await,
         }
     }
 
@@ -740,10 +1087,10 @@ impl DbPool {
                 sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = ? ORDER BY t.started_at DESC")
                     .bind(patient_id).fetch_all(p).await?
             }
-            Self::Mssql(p) => {
-                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT TOP 1 mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id) as ip_address, (SELECT TOP 1 mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id) as port FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = @P1 ORDER BY t.started_at DESC")
-                    .bind(patient_id).fetch_all(p).await?
-            }
+            Self::Mssql(db) => db.query_all::<TherapyRaw>(
+                "SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT TOP 1 mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id) as ip_address, (SELECT TOP 1 mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id) as port FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = @P1 ORDER BY t.started_at DESC",
+                tp!(patient_id)
+            ).await?,
         };
         Ok(raw.into_iter().map(TherapyWithMachine::from).collect())
     }
@@ -800,18 +1147,22 @@ impl DbPool {
                 q = bind_extras!(q, signal_ids, date_from, date_to);
                 q.fetch_one(p).await?
             }
-            Self::Mssql(p) => {
+            Self::Mssql(db) => {
                 let mut ms_where = where_ext.clone();
                 let mut ph_idx = 2u32;
                 while ms_where.contains('?') {
                     ms_where = ms_where.replacen('?', &format!("@P{}", ph_idx), 1);
                     ph_idx += 1;
                 }
-                let mut q = sqlx::query_scalar::<_, i64>(
-                    AssertSqlSafe(format!("SELECT COUNT(*) FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = @P1{}", ms_where))
-                ).bind(patient_id);
-                q = bind_extras!(q, signal_ids, date_from, date_to);
-                q.fetch_one(p).await?
+                let sql = format!("SELECT COUNT(*) FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = @P1{}", ms_where);
+                let signal_ids_local: &[i64] = signal_ids.unwrap_or(&[]);
+                let date_from_str: &str = date_from.unwrap_or("");
+                let date_to_str: &str = date_to.unwrap_or("");
+                let mut params: Vec<&dyn tiberius::ToSql> = vec![&patient_id];
+                for id in signal_ids_local { params.push(id as &dyn tiberius::ToSql); }
+                if date_from.is_some() { params.push(&date_from_str as &dyn tiberius::ToSql); }
+                if date_to.is_some() { params.push(&date_to_str as &dyn tiberius::ToSql); }
+                db.query_scalar::<i32>(&sql, &params).await.map(|v| v as i64)?
             }
         };
 
@@ -843,7 +1194,7 @@ impl DbPool {
                 q = bind_extras!(q, signal_ids, date_from, date_to);
                 q.bind(per_page).bind(offset).fetch_all(p).await?
             }
-            Self::Mssql(p) => {
+            Self::Mssql(db) => {
                 let mut ms_where = where_ext.clone();
                 let mut ph_idx = 2u32;
                 while ms_where.contains('?') {
@@ -853,9 +1204,16 @@ impl DbPool {
                 let offset_ph = ph_idx;
                 let limit_ph = ph_idx + 1;
                 let sql = format!("SELECT te.* FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = @P1{} ORDER BY te.timestamp DESC OFFSET @P{} ROWS FETCH NEXT @P{} ROWS ONLY", ms_where, offset_ph, limit_ph);
-                let mut q = sqlx::query_as::<_, TelemetryReading>(AssertSqlSafe(sql)).bind(patient_id);
-                q = bind_extras!(q, signal_ids, date_from, date_to);
-                q.bind(offset).bind(per_page).fetch_all(p).await?
+                let signal_ids_local: &[i64] = signal_ids.unwrap_or(&[]);
+                let date_from_str: &str = date_from.unwrap_or("");
+                let date_to_str: &str = date_to.unwrap_or("");
+                let mut params: Vec<&dyn tiberius::ToSql> = vec![&patient_id as &dyn tiberius::ToSql];
+                for id in signal_ids_local { params.push(id as &dyn tiberius::ToSql); }
+                if date_from.is_some() { params.push(&date_from_str as &dyn tiberius::ToSql); }
+                if date_to.is_some() { params.push(&date_to_str as &dyn tiberius::ToSql); }
+                params.push(&offset as &dyn tiberius::ToSql);
+                params.push(&per_page as &dyn tiberius::ToSql);
+                db.query_all::<TelemetryReading>(&sql, &params).await?
             }
         };
 
@@ -881,11 +1239,10 @@ impl DbPool {
                     "SELECT mi.ip_address, mi.port, m.serial_number FROM therapies t JOIN machines m ON t.machine_id = m.id JOIN machine_ips mi ON mi.machine_id = m.id AND mi.is_active = TRUE WHERE t.patient_id = ? AND t.status = 'active' ORDER BY t.started_at DESC LIMIT 1"
                 ).bind(patient_id).fetch_optional(p).await
             }
-            Self::Mssql(p) => {
-                sqlx::query_as::<_, ActiveDeviceRaw>(
-                    "SELECT mi.ip_address, mi.port, m.serial_number FROM therapies t JOIN machines m ON t.machine_id = m.id JOIN machine_ips mi ON mi.machine_id = m.id AND mi.is_active = 1 WHERE t.patient_id = @P1 AND t.status = 'active' ORDER BY t.started_at DESC OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY"
-                ).bind(patient_id).fetch_optional(p).await
-            }
+            Self::Mssql(db) => db.query_one::<ActiveDeviceRaw>(
+                "SELECT mi.ip_address, mi.port, m.serial_number FROM therapies t JOIN machines m ON t.machine_id = m.id JOIN machine_ips mi ON mi.machine_id = m.id AND mi.is_active = 1 WHERE t.patient_id = @P1 AND t.status = 'active' ORDER BY t.started_at DESC OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY",
+                tp!(patient_id)
+            ).await
         }.map(|o| o.map(ActiveDevice::from))
     }
 
@@ -897,7 +1254,7 @@ impl DbPool {
                 Self::Sqlite(p) => sqlx::query_as(sql).fetch_all(p).await?,
             Self::Postgres(p) => sqlx::query_as(sql).fetch_all(p).await?,
             Self::Mysql(p) => sqlx::query_as(sql).fetch_all(p).await?,
-            Self::Mssql(p) => sqlx::query_as(sql).fetch_all(p).await?,
+            Self::Mssql(db) => db.query_all::<MachineIpWithSerialRaw>(sql, &[]).await?,
         };
         Ok(raw.into_iter().map(MachineIpWithSerial::from).collect())
     }
@@ -924,11 +1281,12 @@ impl DbPool {
                 let id: (i64,) = sqlx::query_as("SELECT LAST_INSERT_ID()").fetch_one(p).await?;
                 self.find_machine_ip_by_id(id.0).await?.ok_or_else(|| sqlx::Error::Configuration("Created machine IP not found after insert".into()))
             }
-            Self::Mssql(p) => {
-                sqlx::query_as::<_, MachineIp>(
-                    "INSERT INTO machine_ips (machine_id, ip_address, port, label) OUTPUT INSERTED.* VALUES (@P1, @P2, @P3, @P4)"
-                ).bind(req.machine_id).bind(&req.ip_address).bind(req.port.unwrap_or(9001)).bind(&req.label)
-                .fetch_one(p).await
+            Self::Mssql(db) => {
+                let port = req.port.unwrap_or(9001);
+                db.query_one::<MachineIp>(
+                    "INSERT INTO machine_ips (machine_id, ip_address, port, label) OUTPUT INSERTED.* VALUES (@P1, @P2, @P3, @P4)",
+                    tp!(req.machine_id, req.ip_address, port, req.label)
+                ).await?.ok_or_else(|| sqlx::Error::Protocol("INSERT OUTPUT returned no rows".into()))
             }
         }
     }
@@ -939,7 +1297,7 @@ impl DbPool {
                 Self::Sqlite(p) => sqlx::query_as("SELECT * FROM machine_ips WHERE id = ?").bind(id).fetch_optional(p).await,
             Self::Postgres(p) => sqlx::query_as("SELECT * FROM machine_ips WHERE id = $1").bind(id).fetch_optional(p).await,
             Self::Mysql(p) => sqlx::query_as("SELECT * FROM machine_ips WHERE id = ?").bind(id).fetch_optional(p).await,
-            Self::Mssql(p) => sqlx::query_as("SELECT * FROM machine_ips WHERE id = @P1").bind(id).fetch_optional(p).await,
+            Self::Mssql(db) => db.query_one::<MachineIp>("SELECT * FROM machine_ips WHERE id = @P1", tp!(id)).await,
         }
     }
 
@@ -998,7 +1356,7 @@ impl DbPool {
                 if let Some(v) = req.is_active { q = q.bind(if v { 1i32 } else { 0i32 }); }
                 q.bind(id).execute(p).await?;
             }
-            Self::Mssql(p) => {
+            Self::Mssql(db) => {
                 let mut sets: Vec<String> = Vec::new();
                 let mut idx = 0u32;
                 if req.ip_address.is_some() { idx += 1; sets.push(format!("ip_address = @P{}", idx)); }
@@ -1007,12 +1365,17 @@ impl DbPool {
                 if req.is_active.is_some() { idx += 1; sets.push(format!("is_active = @P{}", idx)); }
                 idx += 1;
                 let sql = format!("UPDATE machine_ips SET {}, updated_at = GETUTCDATE() WHERE id = @P{}", sets.join(", "), idx);
-                let mut q = sqlx::query(AssertSqlSafe(sql));
-                if let Some(ref v) = req.ip_address { q = q.bind(v.as_str()); }
-                if let Some(v) = req.port { q = q.bind(v); }
-                if let Some(ref v) = req.label { q = q.bind(v.as_str()); }
-                if let Some(v) = req.is_active { q = q.bind(if v { 1i32 } else { 0i32 }); }
-                q.bind(id).execute(p).await?;
+                let ip_str: &str = req.ip_address.as_deref().unwrap_or("");
+                let label_str: &str = req.label.as_deref().unwrap_or("");
+                let port_val: Option<i64> = req.port.map(|p| p as i64);
+                let active_val: Option<i64> = req.is_active.map(|v| if v { 1i64 } else { 0i64 });
+                let mut params: Vec<&dyn tiberius::ToSql> = Vec::new();
+                if req.ip_address.is_some() { params.push(&ip_str as &dyn tiberius::ToSql); }
+                if let Some(ref v) = port_val { params.push(v as &dyn tiberius::ToSql); }
+                if req.label.is_some() { params.push(&label_str as &dyn tiberius::ToSql); }
+                if let Some(ref v) = active_val { params.push(v as &dyn tiberius::ToSql); }
+                params.push(&id as &dyn tiberius::ToSql);
+                db.execute(&sql, &params).await?;
             }
         }
         self.find_machine_ip_by_id(id).await
@@ -1033,10 +1396,7 @@ impl DbPool {
                 let r = sqlx::query("DELETE FROM machine_ips WHERE id = ?").bind(id).execute(p).await?;
                 r.rows_affected()
             }
-            Self::Mssql(p) => {
-                let r = sqlx::query("DELETE FROM machine_ips WHERE id = @P1").bind(id).execute(p).await?;
-                r.rows_affected()
-            }
+            Self::Mssql(db) => db.execute("DELETE FROM machine_ips WHERE id = @P1", tp!(id)).await?
         };
         Ok(affected > 0)
     }
@@ -1095,7 +1455,7 @@ impl DbPool {
                 q = bind_extras_dash!(q, signal_ids, date_from, date_to);
                 q.fetch_all(p).await?
             }
-            Self::Mssql(p) => {
+            Self::Mssql(db) => {
                 let safe_cast = agg_base.replace("CAST(te.physical_value AS REAL)", "TRY_CAST(te.physical_value AS REAL)");
                 let mut ms_where = extra_where.clone();
                 let mut ph_idx = 2u32;
@@ -1104,9 +1464,14 @@ impl DbPool {
                     ph_idx += 1;
                 }
                 let sql = format!("{}{}{}", safe_cast.replace('?', "@P1"), ms_where, order);
-                let mut q = sqlx::query_as(AssertSqlSafe(sql)).bind(patient_id);
-                q = bind_extras_dash!(q, signal_ids, date_from, date_to);
-                q.fetch_all(p).await?
+                let signal_ids_local: &[i64] = signal_ids.unwrap_or(&[]);
+                let date_from_str: &str = date_from.unwrap_or("");
+                let date_to_str: &str = date_to.unwrap_or("");
+                let mut params: Vec<&dyn tiberius::ToSql> = vec![&patient_id as &dyn tiberius::ToSql];
+                for id in signal_ids_local { params.push(id as &dyn tiberius::ToSql); }
+                if date_from.is_some() { params.push(&date_from_str as &dyn tiberius::ToSql); }
+                if date_to.is_some() { params.push(&date_to_str as &dyn tiberius::ToSql); }
+                db.query_all::<DashboardSignalRaw>(&sql, &params).await?
             }
         };
 
@@ -1136,7 +1501,7 @@ impl DbPool {
                 q = bind_extras_dash!(q, signal_ids, date_from, date_to);
                 q.fetch_all(p).await?
             }
-            Self::Mssql(p) => {
+            Self::Mssql(db) => {
                 let mut ms_where = extra_where.clone();
                 let mut ph_idx = 2u32;
                 while ms_where.contains('?') {
@@ -1144,9 +1509,14 @@ impl DbPool {
                     ph_idx += 1;
                 }
                 let sql = format!("{}{}{}", batch_base.replace('?', "@P1"), ms_where, order_batch);
-                let mut q = sqlx::query_as(AssertSqlSafe(sql)).bind(patient_id);
-                q = bind_extras_dash!(q, signal_ids, date_from, date_to);
-                q.fetch_all(p).await?
+                let signal_ids_local: &[i64] = signal_ids.unwrap_or(&[]);
+                let date_from_str: &str = date_from.unwrap_or("");
+                let date_to_str: &str = date_to.unwrap_or("");
+                let mut params: Vec<&dyn tiberius::ToSql> = vec![&patient_id as &dyn tiberius::ToSql];
+                for id in signal_ids_local { params.push(id as &dyn tiberius::ToSql); }
+                if date_from.is_some() { params.push(&date_from_str as &dyn tiberius::ToSql); }
+                if date_to.is_some() { params.push(&date_to_str as &dyn tiberius::ToSql); }
+                db.query_all::<DashboardValueWithSignal>(&sql, &params).await?
             }
         };
 
@@ -1182,9 +1552,9 @@ impl DbPool {
                 sqlx::query_as(AssertSqlSafe(pg_sql)).bind(therapy_id).fetch_all(p).await?
             }
             Self::Mysql(p) => sqlx::query_as(agg_sql).bind(therapy_id).fetch_all(p).await?,
-            Self::Mssql(p) => {
+            Self::Mssql(db) => {
                 let mssql_sql = agg_sql.replace('?', "@P1").replace("CAST(te.physical_value AS REAL)", "TRY_CAST(te.physical_value AS REAL)");
-                sqlx::query_as(AssertSqlSafe(mssql_sql)).bind(therapy_id).fetch_all(p).await?
+                db.query_all::<DashboardSignalRaw>(&mssql_sql, tp!(therapy_id)).await?
             }
         };
 
@@ -1196,9 +1566,10 @@ impl DbPool {
                 sqlx::query_as(AssertSqlSafe(pg_sql)).bind(therapy_id).fetch_all(p).await?
             }
             Self::Mysql(p) => sqlx::query_as(batch_vals_sql).bind(therapy_id).fetch_all(p).await?,
-            Self::Mssql(p) => sqlx::query_as::<_, DashboardValueWithSignal>(
-                "SELECT te.signal_id, te.timestamp, te.physical_value FROM telemetry te WHERE te.therapy_id = @P1 AND te.physical_value IS NOT NULL AND te.physical_value != '' ORDER BY te.signal_id, te.timestamp ASC"
-            ).bind(therapy_id).fetch_all(p).await?,
+            Self::Mssql(db) => db.query_all::<DashboardValueWithSignal>(
+                "SELECT te.signal_id, te.timestamp, te.physical_value FROM telemetry te WHERE te.therapy_id = @P1 AND te.physical_value IS NOT NULL AND te.physical_value != '' ORDER BY te.signal_id, te.timestamp ASC",
+                tp!(therapy_id)
+            ).await?,
         };
 
         let mut values_by_signal: HashMap<i64, Vec<DashboardValue>> = HashMap::new();
@@ -1236,7 +1607,7 @@ impl DbPool {
             Self::Sqlite(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
             Self::Postgres(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
             Self::Mysql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
-            Self::Mssql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
+            Self::Mssql(db) => db.query_all::<TelemetryExportRow>(&limited_sql, tp!(patient_id)).await,
         }
     }
 
@@ -1254,7 +1625,7 @@ impl DbPool {
             Self::Sqlite(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
             Self::Postgres(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
             Self::Mysql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
-            Self::Mssql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
+            Self::Mssql(db) => db.query_all::<TelemetryExportRow>(&limited_sql, tp!(therapy_id)).await,
         }
     }
 
@@ -1264,7 +1635,7 @@ impl DbPool {
             Self::Sqlite(p) => sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences").fetch_all(p).await,
             Self::Postgres(p) => sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences").fetch_all(p).await,
             Self::Mysql(p) => sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences").fetch_all(p).await,
-            Self::Mssql(p) => sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences").fetch_all(p).await,
+            Self::Mssql(db) => db.query_all::<AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences", &[]).await,
         }
     }
 
@@ -1276,7 +1647,7 @@ impl DbPool {
             Self::Sqlite(p) => sqlx::query_as::<_, EquivalenceResponse>(sql).fetch_all(p).await,
             Self::Postgres(p) => sqlx::query_as::<_, EquivalenceResponse>(sql).fetch_all(p).await,
             Self::Mysql(p) => sqlx::query_as::<_, EquivalenceResponse>(sql).fetch_all(p).await,
-            Self::Mssql(p) => sqlx::query_as::<_, EquivalenceResponse>(sql).fetch_all(p).await,
+            Self::Mssql(db) => db.query_all::<EquivalenceResponse>(sql, &[]).await,
         }
     }
 
@@ -1309,15 +1680,11 @@ impl DbPool {
                 let (id,): (i64,) = sqlx::query_as("SELECT LAST_INSERT_ID()").fetch_one(p).await?;
                 Ok(id)
             }
-            Self::Mssql(p) => {
-                if let Some((id,)) = sqlx::query_as::<_, (i64,)>("SELECT id FROM signals WHERE internal_name = @P1")
-                    .bind(internal_name).fetch_optional(p).await? {
+            Self::Mssql(db) => {
+                if let Some(id) = db.query_scalar::<i64>("SELECT id FROM signals WHERE internal_name = @P1", tp!(internal_name)).await.ok() {
                     return Ok(id);
                 }
-                let (id,): (i64,) = sqlx::query_as(
-                    "INSERT INTO signals (internal_name) OUTPUT INSERTED.id VALUES (@P1)"
-                ).bind(internal_name).fetch_one(p).await?;
-                Ok(id)
+                db.query_scalar::<i64>("INSERT INTO signals (internal_name) OUTPUT INSERTED.id VALUES (@P1)", tp!(internal_name)).await
             }
         }
     }
@@ -1343,11 +1710,11 @@ impl DbPool {
                 ).bind(signal_id).bind(numeric_value).bind(display_name).execute(p).await?;
                 Ok(())
             }
-            Self::Mssql(p) => {
-                // MERGE for upsert on MSSQL
-                sqlx::query(
-                    "MERGE attribute_equivalences AS target USING (SELECT @P1 AS signal_id, @P2 AS numeric_value, @P3 AS display_name) AS source ON (target.signal_id = source.signal_id AND target.numeric_value = source.numeric_value) WHEN MATCHED THEN UPDATE SET display_name = source.display_name WHEN NOT MATCHED THEN INSERT (signal_id, numeric_value, display_name) VALUES (source.signal_id, source.numeric_value, source.display_name);"
-                ).bind(signal_id).bind(numeric_value).bind(display_name).execute(p).await?;
+            Self::Mssql(db) => {
+                db.execute(
+                    "MERGE attribute_equivalences AS target USING (SELECT @P1 AS signal_id, @P2 AS numeric_value, @P3 AS display_name) AS source ON (target.signal_id = source.signal_id AND target.numeric_value = source.numeric_value) WHEN MATCHED THEN UPDATE SET display_name = source.display_name WHEN NOT MATCHED THEN INSERT (signal_id, numeric_value, display_name) VALUES (source.signal_id, source.numeric_value, source.display_name);",
+                    tp!(signal_id, numeric_value, display_name)
+                ).await?;
                 Ok(())
             }
         }
@@ -1371,9 +1738,8 @@ impl DbPool {
                     .bind(display_name).bind(signal_id).bind(numeric_value).execute(p).await?;
                 Ok(())
             }
-            Self::Mssql(p) => {
-                sqlx::query("UPDATE attribute_equivalences SET display_name = @P1 WHERE signal_id = @P2 AND numeric_value = @P3")
-                    .bind(display_name).bind(signal_id).bind(numeric_value).execute(p).await?;
+            Self::Mssql(db) => {
+                db.execute("UPDATE attribute_equivalences SET display_name = @P1 WHERE signal_id = @P2 AND numeric_value = @P3", tp!(display_name, signal_id, numeric_value)).await?;
                 Ok(())
             }
         }
@@ -1403,11 +1769,9 @@ impl DbPool {
                     .bind(signal_id).bind(numeric_value).execute(p).await?;
                 Ok(())
             }
-            Self::Mssql(p) => {
-                sqlx::query("INSERT INTO equivalence_deletion_log (signal_id, numeric_value, deleted_by, deletion_reason) VALUES (@P1, @P2, @P3, @P4)")
-                    .bind(signal_id).bind(numeric_value).bind(deleted_by).bind(deletion_reason).execute(p).await?;
-                sqlx::query("DELETE FROM attribute_equivalences WHERE signal_id = @P1 AND numeric_value = @P2")
-                    .bind(signal_id).bind(numeric_value).execute(p).await?;
+            Self::Mssql(db) => {
+                db.execute("INSERT INTO equivalence_deletion_log (signal_id, numeric_value, deleted_by, deletion_reason) VALUES (@P1, @P2, @P3, @P4)", tp!(signal_id, numeric_value, deleted_by, deletion_reason)).await?;
+                db.execute("DELETE FROM attribute_equivalences WHERE signal_id = @P1 AND numeric_value = @P2", tp!(signal_id, numeric_value)).await?;
                 Ok(())
             }
         }
@@ -1420,7 +1784,7 @@ impl DbPool {
             Self::Sqlite(p) => sqlx::query_as::<_, Signal>("SELECT id, internal_name, display_name, unit FROM signals ORDER BY internal_name").fetch_all(p).await,
             Self::Postgres(p) => sqlx::query_as::<_, Signal>("SELECT id, internal_name, display_name, unit FROM signals ORDER BY internal_name").fetch_all(p).await,
             Self::Mysql(p) => sqlx::query_as::<_, Signal>("SELECT id, internal_name, display_name, unit FROM signals ORDER BY internal_name").fetch_all(p).await,
-            Self::Mssql(p) => sqlx::query_as::<_, Signal>("SELECT id, internal_name, display_name, unit FROM signals ORDER BY internal_name").fetch_all(p).await,
+            Self::Mssql(db) => db.query_all::<Signal>("SELECT id, internal_name, display_name, unit FROM signals ORDER BY internal_name", &[]).await,
         }
     }
 
@@ -1464,16 +1828,19 @@ impl DbPool {
                 q.bind(id).execute(p).await?;
                 Ok(())
             }
-            Self::Mssql(p) => {
+            Self::Mssql(db) => {
                 let mut sets: Vec<String> = Vec::new();
                 let mut ph = 1u32;
                 if has_display { sets.push(format!("display_name = @P{}", ph)); ph += 1; }
                 if has_unit { sets.push(format!("unit = @P{}", ph)); ph += 1; }
                 let mssql_sql = format!("UPDATE signals SET {} WHERE id = @P{}", sets.join(", "), ph);
-                let mut q = sqlx::query(AssertSqlSafe(mssql_sql));
-                if let Some(v) = display_name { q = q.bind(v); }
-                if let Some(v) = unit { q = q.bind(v); }
-                q.bind(id).execute(p).await?;
+                let display_str: &str = display_name.unwrap_or("");
+                let unit_str: &str = unit.unwrap_or("");
+                let mut params: Vec<&dyn tiberius::ToSql> = Vec::new();
+                if has_display { params.push(&display_str as &dyn tiberius::ToSql); }
+                if has_unit { params.push(&unit_str as &dyn tiberius::ToSql); }
+                params.push(&id as &dyn tiberius::ToSql);
+                db.execute(&mssql_sql, &params).await?;
                 Ok(())
             }
         }
@@ -1485,7 +1852,7 @@ impl DbPool {
                 Self::Sqlite(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines ORDER BY serial_number").fetch_all(p).await,
             Self::Postgres(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines ORDER BY serial_number").fetch_all(p).await,
             Self::Mysql(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines ORDER BY serial_number").fetch_all(p).await,
-            Self::Mssql(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines ORDER BY serial_number").fetch_all(p).await,
+            Self::Mssql(db) => db.query_all::<Machine>("SELECT * FROM machines ORDER BY serial_number", &[]).await,
         }
     }
 
@@ -1508,9 +1875,8 @@ impl DbPool {
                     sqlx::query("INSERT INTO users (username, password, full_name, email, role, active) VALUES ('admin', ?, 'Administrator', 'admin@monitor.local', 'admin', TRUE)")
                         .bind(&pw).execute(p).await?;
                 }
-                Self::Mssql(p) => {
-                    sqlx::query("INSERT INTO users (username, password, full_name, email, role, active) VALUES ('admin', @P1, 'Administrator', 'admin@monitor.local', 'admin', 1)")
-                        .bind(&pw).execute(p).await?;
+                Self::Mssql(db) => {
+                    db.execute("INSERT INTO users (username, password, full_name, email, role, active) VALUES ('admin', @P1, 'Administrator', 'admin@monitor.local', 'admin', 1)", tp!(pw)).await?;
                 }
             }
         }

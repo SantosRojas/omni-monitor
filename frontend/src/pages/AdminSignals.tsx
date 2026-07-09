@@ -11,7 +11,8 @@ import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
 import { Pencil } from 'lucide-react'
 import type { Signal } from '../types'
 import * as signalsApi from '../api/signals'
-import { Spinner, Modal, ColumnFilter, Button, Input, Label, Pagination } from '../components/ui'
+import { Modal, Button, Input, Label } from '../components/ui'
+import { DataTable } from '../components/data-table'
 import { useToast } from '../contexts/ToastContext'
 
 const helper = createColumnHelper<Signal>()
@@ -107,42 +108,13 @@ export function AdminSignals() {
         <h2 className="text-lg md:text-xl font-bold text-(--text-primary)">Señales</h2>
       </div>
 
-      {loading ? <Spinner message="Cargando señales..." /> : (
-        <div className="glass overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              {table.getHeaderGroups().map(hg => (
-                <tr key={hg.id}>
-                  {hg.headers.map(h => (
-                    <th key={h.id} onClick={h.column.getToggleSortingHandler()} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] cursor-pointer select-none ${hideSm(h.id)}`}>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1">
-                          {h.column.columnDef.header as string}
-                          {h.column.getIsSorted() && <span className="text-[10px]">{h.column.getIsSorted() === 'asc' ? '▲' : '▼'}</span>}
-                        </div>
-                        {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {table.getRowModel().rows.map(row => (
-                <tr key={row.id} className="hover:bg-(--surface-row-hover) transition-colors">
-                  {row.getVisibleCells().map(cell => (
-                    <td key={cell.id} className={`px-4 py-3 text-sm text-(--text-secondary) border-b border-[var(--border-subtle)] ${hideSm(cell.column.id)}`}>
-                      {cell.column.columnDef.cell ? (cell.column.columnDef.cell as any)(cell.getContext()) : cell.getValue() as string}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {data.length === 0 && <div className="text-center py-10 text-(--text-muted) text-sm">No hay señales</div>}
-          {data.length > 0 && <Pagination table={table} />}
-        </div>
-      )}
+      <DataTable table={table} loading={loading}>
+        <DataTable.Grid
+          emptyMessage="No hay señales"
+          hideSm={hideSm}
+        />
+        <DataTable.Pagination />
+      </DataTable>
 
       <Modal open={selected !== null} onClose={() => setSelected(null)} title="Editar Señal">
         <div className="flex flex-col gap-4">

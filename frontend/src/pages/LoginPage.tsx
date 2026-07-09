@@ -46,11 +46,11 @@ export function LoginPage() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
             <Label className="mb-1.5">Usuario</Label>
-            <Input variant="login" value={username} onChange={e => setUsername(e.target.value)} autoFocus required />
+            <Input variant="login" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} autoFocus required />
           </div>
           <div>
             <Label className="mb-1.5">Contraseña</Label>
-            <Input variant="login" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+            <Input variant="login" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
           <Button type="submit" variant="primary" size="lg" className="w-full!" disabled={loading} icon={loading ? undefined : <LogIn className="w-4 h-4" />}>
             {loading ? (

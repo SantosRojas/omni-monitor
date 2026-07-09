@@ -11,7 +11,8 @@ import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { Equivalence } from '../types'
 import * as equivalencesApi from '../api/equivalences'
-import { Spinner, Modal, ColumnFilter, Button, Input, Label, SearchInput, Pagination } from '../components/ui'
+import { Modal, Button, Input, Label } from '../components/ui'
+import { DataTable } from '../components/data-table'
 import { useToast } from '../contexts/ToastContext'
 
 const helper = createColumnHelper<Equivalence>()
@@ -148,46 +149,14 @@ export function AdminEquivalences() {
         </Button>
       </div>
 
-      <div className="mb-4">
-        <SearchInput value={globalFilter ?? ''} onChange={e => setGlobalFilter(e.target.value)} placeholder="Buscar en toda la tabla..." />
-      </div>
-
-      {loading ? <Spinner message="Cargando equivalencias..." /> : (
-        <div className="glass overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              {table.getHeaderGroups().map(hg => (
-                <tr key={hg.id}>
-                  {hg.headers.map(h => (
-                    <th key={h.id} onClick={h.column.getToggleSortingHandler()} className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-[var(--border-subtle)] cursor-pointer select-none ${hideSm(h.id)}`}>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1">
-                          {h.column.columnDef.header as string}
-                          {h.column.getIsSorted() && <span className="text-[10px]">{h.column.getIsSorted() === 'asc' ? '▲' : '▼'}</span>}
-                        </div>
-                        {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {table.getRowModel().rows.map(row => (
-                <tr key={row.id} className="hover:bg-(--surface-row-hover) transition-colors">
-                  {row.getVisibleCells().map(cell => (
-                    <td key={cell.id} className={`px-4 py-3 text-sm text-(--text-secondary) border-b border-[var(--border-subtle)] ${hideSm(cell.column.id)}`}>
-                      {cell.column.columnDef.cell ? (cell.column.columnDef.cell as any)(cell.getContext()) : cell.getValue() as string}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {data.length === 0 && !error && <div className="text-center py-10 text-(--text-muted) text-sm">No hay equivalencias</div>}
-          {data.length > 0 && <Pagination table={table} />}
-        </div>
-      )}
+      <DataTable table={table} loading={loading}>
+        <DataTable.Search />
+        <DataTable.Grid
+          emptyMessage="No hay equivalencias"
+          hideSm={hideSm}
+        />
+        <DataTable.Pagination />
+      </DataTable>
 
       {error && <div className="mb-4 p-3 rounded-sm bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>}
 
