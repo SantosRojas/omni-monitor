@@ -85,33 +85,33 @@ export function PatientDetail() {
 
   return (
     <div>
-      <Button variant="ghost" size="sm" onClick={() => navigate('/patients')} icon={<ArrowLeft className="w-4 h-4" />}>
-        Volver a pacientes
-      </Button>
+      <div className="flex flex-col gap-2 items-start w-full">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/patients')} icon={<ArrowLeft className="w-4 h-4" />}>
+          Volver a pacientes
+        </Button>
 
-      <div className="glass p-4 md:p-5 mb-5">
-        <div className="flex flex-col sm:flex-row items-start justify-between gap-3 mb-3">
-          <div>
-            <h2 className='text-(--text-primary)'><span className="text-lg md:text-xl font-bold">Paciente: </span> {patient.patient_id_str}</h2>
-            {/* <p className="text-sm text-(--text-muted) mt-1">ID: {patient.id}</p> */}
+
+        <div className="glass p-4 md:p-5 mb-5 w-full">
+          <div className="flex flex-col sm:flex-row items-start justify-between  gap-3">
+            <div>
+              <h2 className='text-(--text-primary)'><span className="text-lg md:text-xl font-bold">Paciente: </span> {patient.patient_id_str}</h2>
+              {/* <p className="text-sm text-(--text-muted) mt-1">ID: {patient.id}</p> */}
+            </div>
+            <div><span className="text-(--text-muted)">Creado: </span>{formatDateShort(patient.created_at)}</div>
+            <div><span className="text-(--text-muted)">Terapias completas: </span>{patient.completed_therapy_count ?? 0}</div>
+            <div className="flex flex-wrap gap-2">
+              <Link to={`/patients/${patient.id}/dashboard`} className="no-underline">
+                <Button variant="secondary" size="sm" icon={<LineChart className="w-4 h-4" />}>Dashboard</Button>
+              </Link>
+              <Link to={`/patients/${patient.id}/history`} className="no-underline">
+                <Button variant="secondary" size="sm" icon={<Clock className="w-4 h-4" />}>Historial</Button>
+              </Link>
+              <Button variant="secondary" size="sm" icon={<FileDown className="w-4 h-4" />} onClick={() => triggerPatientExport(patient.id).catch(e => showToast(e instanceof Error ? e.message : 'Error al exportar'))}>
+                Exportar
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link to={`/patients/${patient.id}/dashboard`} className="no-underline">
-              <Button variant="secondary" size="sm" icon={<LineChart className="w-4 h-4" />}>Dashboard</Button>
-            </Link>
-            <Link to={`/patients/${patient.id}/history`} className="no-underline">
-              <Button variant="secondary" size="sm" icon={<Clock className="w-4 h-4" />}>Historial</Button>
-            </Link>
-            <Button variant="secondary" size="sm" icon={<FileDown className="w-4 h-4" />} onClick={() => triggerPatientExport(patient.id).catch(e => showToast(e instanceof Error ? e.message : 'Error al exportar'))}>
-              Exportar
-            </Button>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 text-xs md:text-sm">
-          <div><span className="text-(--text-muted)">Creado:</span><br />{formatDateShort(patient.created_at)}</div>
-          <div><span className="text-(--text-muted)">Id:</span><br />{patient.id}</div>
-          <div><span className="text-(--text-muted)">Terapias Activas:</span><br /><Badge variant={patient.active_therapy_count && patient.active_therapy_count > 0 ? 'active' : 'inactive'}>{patient.active_therapy_count ?? 0}</Badge></div>
-          <div><span className="text-(--text-muted)">Terapias completas:</span><br /><Badge variant={'active'}>{patient.completed_therapy_count ?? 0}</Badge></div>
+
         </div>
       </div>
 
