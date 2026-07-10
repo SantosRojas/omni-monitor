@@ -29,7 +29,7 @@ export function AdminMachineIps() {
 
   const [formMachineId, setFormMachineId] = useState(0)
   const [formIp, setFormIp] = useState('')
-  const [formPort, setFormPort] = useState(9001)
+  const [formPort, setFormPort] = useState<number | undefined>(undefined)
   const [formLabel, setFormLabel] = useState('')
   const [formIsActive, setFormIsActive] = useState(true)
   const [sorting, setSorting] = useState<SortingState>([])
@@ -54,7 +54,7 @@ export function AdminMachineIps() {
     setEditing(null)
     setFormMachineId(machines[0]?.id || 0)
     setFormIp('')
-    setFormPort(9001)
+    setFormPort(undefined)
     setFormLabel('')
     setFormIsActive(true)
     setModalOpen(true)
@@ -64,7 +64,7 @@ export function AdminMachineIps() {
     setEditing(item)
     setFormMachineId(item.machine_id)
     setFormIp(item.ip_address)
-    setFormPort(item.port ?? 9001)
+    setFormPort(item.port ?? undefined)
     setFormLabel(item.label ?? '')
     setFormIsActive(item.is_active)
     setModalOpen(true)
@@ -108,7 +108,7 @@ export function AdminMachineIps() {
   const columns = useMemo(() => [
     helper.accessor('serial_number', { header: 'Serial' }),
     helper.accessor('ip_address', { header: 'Dirección IP' }),
-    helper.accessor('port', { header: 'Puerto' }),
+    helper.accessor('port', { header: 'Puerto', cell: i => i.getValue() ?? '—' }),
     helper.accessor('label', { header: 'Etiqueta' }),
     helper.accessor('is_active', {
       header: 'Activo',
@@ -179,7 +179,7 @@ export function AdminMachineIps() {
           </div>
           <div>
             <Label>Puerto</Label>
-            <Input type="number" value={formPort} onChange={e => setFormPort(Number(e.target.value))} />
+            <Input type="number" value={formPort ?? ''} onChange={e => setFormPort(e.target.value === '' ? undefined : Number(e.target.value))} />
           </div>
           <div className="flex items-center gap-3">
             <Label className="!mb-0 cursor-pointer" onClick={() => setFormIsActive(!formIsActive)}>Activo</Label>

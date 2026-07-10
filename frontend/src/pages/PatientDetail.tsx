@@ -151,7 +151,8 @@ export function PatientDetail() {
                     const t = row.original
                     if (t.status === 'active') {
                       if (t.ip_address) {
-                        window.open(`http://${t.ip_address}:${t.port ?? 9001}/therapy/${t.id}`, '_blank')
+                        const baseUrl = t.port ? `http://${t.ip_address}:${t.port}` : `http://${t.ip_address}`
+                        window.open(`${baseUrl}/therapy/${t.id}`, '_blank')
                       } else {
                         showToast('No se encuentra la IP de la máquina registrada')
                       }

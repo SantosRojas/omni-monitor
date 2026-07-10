@@ -255,7 +255,7 @@ pub struct PaginatedResponse<T: Serialize> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveDevice {
     pub ip_address: String,
-    pub port: i32,
+    pub port: Option<i32>,
     pub url: String,
     pub serial_number: String,
 }

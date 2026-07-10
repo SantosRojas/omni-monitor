@@ -443,7 +443,7 @@ impl DbPool {
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         machine_id INTEGER NOT NULL,
                         ip_address TEXT NOT NULL,
-                        port INTEGER DEFAULT 9001,
+                        port INTEGER DEFAULT NULL,
                         label TEXT,
                         is_active INTEGER DEFAULT 1,
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -552,7 +552,7 @@ impl DbPool {
                         id BIGSERIAL PRIMARY KEY,
                         machine_id BIGINT NOT NULL REFERENCES machines(id),
                         ip_address TEXT NOT NULL,
-                        port INTEGER DEFAULT 9001,
+                        port INTEGER DEFAULT NULL,
                         label TEXT,
                         is_active BOOLEAN DEFAULT TRUE,
                         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -660,7 +660,7 @@ impl DbPool {
                         id BIGINT AUTO_INCREMENT PRIMARY KEY,
                         machine_id BIGINT NOT NULL,
                         ip_address VARCHAR(255) NOT NULL,
-                        port INT DEFAULT 9001,
+                        port INT DEFAULT NULL,
                         label VARCHAR(500),
                         is_active TINYINT(1) DEFAULT 1,
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -788,7 +788,7 @@ impl DbPool {
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
                             machine_id BIGINT NOT NULL REFERENCES machines(id),
                             ip_address NVARCHAR(MAX) NOT NULL,
-                            port INT DEFAULT 9001,
+                            port INT DEFAULT NULL,
                             label NVARCHAR(500),
                             is_active BIT DEFAULT 1,
                             created_at DATETIME2 DEFAULT CURRENT_TIMESTAMP,
@@ -1265,24 +1265,24 @@ impl DbPool {
                 Self::Sqlite(p) => {
                 sqlx::query_as::<_, MachineIp>(
                     "INSERT INTO machine_ips (machine_id, ip_address, port, label) VALUES (?, ?, ?, ?) RETURNING *"
-                ).bind(req.machine_id).bind(&req.ip_address).bind(req.port.unwrap_or(9001)).bind(&req.label)
+                ).bind(req.machine_id).bind(&req.ip_address).bind(req.port).bind(&req.label)
                 .fetch_one(p).await
             }
             Self::Postgres(p) => {
                 sqlx::query_as::<_, MachineIp>(
                     "INSERT INTO machine_ips (machine_id, ip_address, port, label) VALUES ($1, $2, $3, $4) RETURNING *"
-                ).bind(req.machine_id).bind(&req.ip_address).bind(req.port.unwrap_or(9001)).bind(&req.label)
+                ).bind(req.machine_id).bind(&req.ip_address).bind(req.port).bind(&req.label)
                 .fetch_one(p).await
             }
             Self::Mysql(p) => {
                 sqlx::query("INSERT INTO machine_ips (machine_id, ip_address, port, label) VALUES (?, ?, ?, ?)")
-                    .bind(req.machine_id).bind(&req.ip_address).bind(req.port.unwrap_or(9001)).bind(&req.label)
+                    .bind(req.machine_id).bind(&req.ip_address).bind(req.port).bind(&req.label)
                     .execute(p).await?;
                 let id: (i64,) = sqlx::query_as("SELECT LAST_INSERT_ID()").fetch_one(p).await?;
                 self.find_machine_ip_by_id(id.0).await?.ok_or_else(|| sqlx::Error::Configuration("Created machine IP not found after insert".into()))
             }
             Self::Mssql(db) => {
-                let port = req.port.unwrap_or(9001);
+                let port = req.port;
                 db.query_one::<MachineIp>(
                     "INSERT INTO machine_ips (machine_id, ip_address, port, label) OUTPUT INSERTED.* VALUES (@P1, @P2, @P3, @P4)",
                     tp!(req.machine_id, req.ip_address, port, req.label)
@@ -1934,8 +1934,11 @@ struct ActiveDeviceRaw {
 
 impl From<ActiveDeviceRaw> for ActiveDevice {
     fn from(r: ActiveDeviceRaw) -> Self {
-        let port = r.port.unwrap_or(9001);
-        Self { url: format!("http://{}:{}", r.ip_address, port), ip_address: r.ip_address, port, serial_number: r.serial_number.unwrap_or_default() }
+        let url = match r.port {
+            Some(p) => format!("http://{}:{}", r.ip_address, p),
+            None => format!("http://{}", r.ip_address),
+        };
+        Self { url, ip_address: r.ip_address, port: r.port, serial_number: r.serial_number.unwrap_or_default() }
     }
 }
 

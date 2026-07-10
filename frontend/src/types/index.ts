@@ -180,7 +180,7 @@ export interface PaginatedResponse<T> {
 
 export interface ActiveDevice {
   ip_address: string
-  port: number
+  port?: number
   url: string
   serial_number: string
 }
