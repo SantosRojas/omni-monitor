@@ -1,32 +1,66 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend, ReferenceArea,
+  ResponsiveContainer, ReferenceArea,
 } from 'recharts'
 import { Expand, Minimize } from 'lucide-react'
 import type { DashboardSignal } from '../types'
 
 interface ChartProps {
-  signal: DashboardSignal
+  title: string
+  signals: DashboardSignal[]
 }
 
-export function Chart({ signal }: ChartProps) {
+const SIGNAL_COLORS: Record<string, string> = {
+  'c_press_ap_act': '#ef4444',
+  'c_press_vp_act': '#3b82f6',
+  'c_press_fp_act': '#22c55e',
+  'c_press_tmp_act': '#f59e0b',
+  'c_press_ep_act': '#a855f7',
+  'c_pump_bs_bl_flow_act': '#ef4444',
+  'c_net_rem_flow_act': '#3b82f6',
+  'c_pump_fs_mid_flow_act': '#22c55e',
+  'd_renal_dose_act': '#f59e0b',
+  'c_acc_net_rem_vol_act': '#a855f7',
+}
+
+const FALLBACK_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#84cc16']
+
+function getColor(internalName: string, index: number): string {
+  return SIGNAL_COLORS[internalName] || FALLBACK_COLORS[index % FALLBACK_COLORS.length]
+}
+
+export function Chart({ title, signals }: ChartProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<HTMLDivElement>(null)
   const [zoomDomain, setZoomDomain] = useState<{ start: number; end: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragRefArea, setDragRefArea] = useState<{ x1: number; x2: number } | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [hiddenSignals, setHiddenSignals] = useState<Set<string>>(new Set())
 
-  const signalName = signal.display_name || signal.internal_name
+  const data = useMemo(() => {
+    const timeMap = new Map<number, Record<string, number>>()
+    for (const s of signals) {
+      for (const v of s.values) {
+        const ms = new Date(v.timestamp + 'Z').getTime()
+        const minute = Math.floor(ms / 60000) * 60000
+        if (!timeMap.has(minute)) timeMap.set(minute, {})
+        timeMap.get(minute)![s.internal_name] = v.value
+      }
+    }
+    const sorted = [...timeMap.keys()].sort((a, b) => a - b)
+    return sorted.map(t => ({ time: t, ...timeMap.get(t)! }))
+  }, [signals])
 
-  const data = useMemo(() =>
-    signal.values.map(v => ({
-      time: new Date(v.timestamp + 'Z').getTime(),
-      value: v.value,
-    })),
-    [signal]
-  )
+  const filteredData = useMemo(() => {
+    if (hiddenSignals.size === 0) return data
+    return data.map(d => {
+      const point: { time: number; [key: string]: number | null } = { ...d }
+      for (const name of hiddenSignals) point[name] = null
+      return point
+    })
+  }, [data, hiddenSignals])
 
   const dataMin = data.length > 0 ? data[0].time : 0
   const dataMax = data.length > 0 ? data[data.length - 1].time : 0
@@ -95,12 +129,24 @@ export function Chart({ signal }: ChartProps) {
     return () => document.removeEventListener('fullscreenchange', handler)
   }, [])
 
+  const toggleSignal = (internalName: string) => {
+    setHiddenSignals(prev => {
+      const next = new Set(prev)
+      if (next.has(internalName)) {
+        next.delete(internalName)
+      } else {
+        next.add(internalName)
+      }
+      return next
+    })
+  }
+
   const formatTick = (ms: number) =>
     new Date(ms).toLocaleString('es-PE', {
       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     })
 
-  if (data.length === 0) return null
+  if (data.length === 0 || signals.length === 0) return null
 
   return (
     <div
@@ -109,9 +155,9 @@ export function Chart({ signal }: ChartProps) {
     >
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-base font-semibold text-(--text-primary)">
-          {signalName}
-          {signal.unit && <span className="text-(--text-muted) text-sm ml-2">({signal.unit})</span>}
+          {title}
         </h3>
+
         <div className="flex items-center gap-1">
           {zoomDomain && (
             <button
@@ -140,7 +186,7 @@ export function Chart({ signal }: ChartProps) {
         onMouseLeave={handleMouseUp}
       >
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data}>
+          <LineChart data={filteredData}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
             <XAxis
               dataKey="time"
@@ -153,7 +199,7 @@ export function Chart({ signal }: ChartProps) {
             <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} />
             <Tooltip
               labelFormatter={ms => new Date(ms).toLocaleString('es-PE')}
-              formatter={(val: number) => [val.toFixed(2), signalName]}
+              formatter={(value: number, name: string) => [value.toFixed(2), name]}
               contentStyle={{
                 background: 'var(--sidebar-bg)',
                 border: '1px solid var(--glass-border)',
@@ -161,7 +207,6 @@ export function Chart({ signal }: ChartProps) {
                 color: 'var(--text-primary)',
               }}
             />
-            <Legend formatter={() => signalName} />
             {dragRefArea && isDragging && (
               <ReferenceArea
                 x1={dragRefArea.x1}
@@ -172,26 +217,61 @@ export function Chart({ signal }: ChartProps) {
                 strokeOpacity={0.3}
               />
             )}
-            <Line
-              type="monotone"
-              dataKey="value"
-              name={signalName}
-              stroke="var(--accent)"
-              strokeWidth={2}
-              dot={false}
-            />
+            {signals.map(s => {
+              const color = getColor(s.internal_name, signals.findIndex(x => x.internal_name === s.internal_name))
+              return (
+                <Line
+                  key={s.internal_name}
+                  type="monotone"
+                  dataKey={(d: Record<string, number | null>) => d?.[s.internal_name]}
+                  name={`${s.display_name || s.internal_name}${s.unit ? ` (${s.unit})` : ''}`}
+                  stroke={color}
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls={true}
+                />
+              )
+            })}
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      {!isFullscreen && (
-        <div className="flex gap-4 mt-2 text-xs text-(--text-muted)">
-          <span>Prom: {signal.average?.toFixed(2) ?? '-'}</span>
-          <span>Mín: {signal.minimum?.toFixed(2) ?? '-'}</span>
-          <span>Máx: {signal.maximum?.toFixed(2) ?? '-'}</span>
-          <span>Lecturas: {signal.count}</span>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 justify-center text-xs mt-2" style={{ padding: 0, listStyle: 'none' }}>
+          {signals.map((s, i) => {
+            const hidden = hiddenSignals.has(s.internal_name)
+            const color = getColor(s.internal_name, i)
+            return (
+              <span
+                key={s.internal_name}
+                onClick={() => toggleSignal(s.internal_name)}
+                className="flex items-center gap-1.5"
+                style={{
+                  cursor: 'pointer',
+                  opacity: hidden ? 0.4 : 1,
+                  textDecoration: hidden ? 'line-through' : 'none',
+                }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: color, display: 'inline-block', flexShrink: 0 }} />
+                {s.display_name || s.internal_name}
+              </span>
+            )
+          })}
         </div>
-      )}
+
+      {(() => {
+        const visibleStats = signals.filter(s => !hiddenSignals.has(s.internal_name))
+        if (visibleStats.length === 0) return null
+        return (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-(--text-muted)">
+            {visibleStats.map(s => (
+              <span key={s.internal_name}>
+                {s.display_name || s.internal_name}: Prom {s.average?.toFixed(2) ?? '-'} |
+                Mín {s.minimum?.toFixed(2) ?? '-'} | Máx {s.maximum?.toFixed(2) ?? '-'}
+              </span>
+            ))}
+          </div>
+        )
+      })()}
     </div>
   )
 }

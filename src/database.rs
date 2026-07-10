@@ -264,6 +264,7 @@ impl TryFromRow for TelemetryReading {
             raw_value: col_opt_i64(row, "raw_value")?,
             physical_value: col_opt_str(row, "physical_value")?,
             unit: col_opt_str(row, "unit")?,
+            signal_name: col_opt_str(row, "signal_name")?,
         })
     }
 }
@@ -1169,7 +1170,7 @@ impl DbPool {
         let data: Vec<TelemetryReading> = match self {
             Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
             Self::Sqlite(p) => {
-                let sql = format!("SELECT te.* FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = ?{} ORDER BY te.timestamp DESC LIMIT ? OFFSET ?", where_ext);
+                let sql = format!("SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = ?{} ORDER BY te.timestamp DESC LIMIT ? OFFSET ?", where_ext);
                 let mut q = sqlx::query_as::<_, TelemetryReading>(AssertSqlSafe(sql)).bind(patient_id);
                 q = bind_extras!(q, signal_ids, date_from, date_to);
                 q.bind(per_page).bind(offset).fetch_all(p).await?
@@ -1183,13 +1184,13 @@ impl DbPool {
                 }
                 let limit_ph = ph_idx;
                 let offset_ph = ph_idx + 1;
-                let sql = format!("SELECT te.* FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = $1{} ORDER BY te.timestamp DESC LIMIT ${} OFFSET ${}", pg_where, limit_ph, offset_ph);
+                let sql = format!("SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = $1{} ORDER BY te.timestamp DESC LIMIT ${} OFFSET ${}", pg_where, limit_ph, offset_ph);
                 let mut q = sqlx::query_as::<_, TelemetryReading>(AssertSqlSafe(sql)).bind(patient_id);
                 q = bind_extras!(q, signal_ids, date_from, date_to);
                 q.bind(per_page).bind(offset).fetch_all(p).await?
             }
             Self::Mysql(p) => {
-                let sql = format!("SELECT te.* FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = ?{} ORDER BY te.timestamp DESC LIMIT ? OFFSET ?", where_ext);
+                let sql = format!("SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = ?{} ORDER BY te.timestamp DESC LIMIT ? OFFSET ?", where_ext);
                 let mut q = sqlx::query_as::<_, TelemetryReading>(AssertSqlSafe(sql)).bind(patient_id);
                 q = bind_extras!(q, signal_ids, date_from, date_to);
                 q.bind(per_page).bind(offset).fetch_all(p).await?
@@ -1203,7 +1204,7 @@ impl DbPool {
                 }
                 let offset_ph = ph_idx;
                 let limit_ph = ph_idx + 1;
-                let sql = format!("SELECT te.* FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = @P1{} ORDER BY te.timestamp DESC OFFSET @P{} ROWS FETCH NEXT @P{} ROWS ONLY", ms_where, offset_ph, limit_ph);
+                let sql = format!("SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = @P1{} ORDER BY te.timestamp DESC OFFSET @P{} ROWS FETCH NEXT @P{} ROWS ONLY", ms_where, offset_ph, limit_ph);
                 let signal_ids_local: &[i64] = signal_ids.unwrap_or(&[]);
                 let date_from_str: &str = date_from.unwrap_or("");
                 let date_to_str: &str = date_to.unwrap_or("");

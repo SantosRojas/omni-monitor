@@ -47,7 +47,7 @@ export function PatientHistory() {
       header: 'Fecha/Hora',
       cell: i => formatDate(i.getValue()),
     }),
-    helper.accessor('signal_id', { header: 'Signal ID' }),
+    helper.accessor('signal_name', { header: 'Señal' }),
     helper.accessor('physical_value', { header: 'Valor' }),
     helper.accessor('unit', { header: 'Unidad' }),
   ], [])

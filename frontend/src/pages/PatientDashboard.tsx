@@ -7,16 +7,18 @@ import { Spinner } from '../components/ui/Spinner'
 import { Chart } from '../components/Chart'
 import { useToast } from '../contexts/ToastContext'
 
-const SIGNALS_TO_SHOW = new Set([
-  'c_pump_bs_bl_flow_act',
-  'c_net_rem_flow_act',
-  'c_pump_fs_mid_flow_act',
-  'd_renal_dose_act',
-  'c_acc_net_rem_vol_act',
+const PRESSURE_SIGNALS = new Set([
   'c_press_ap_act',
   'c_press_vp_act',
   'c_press_fp_act',
   'c_press_tmp_act',
+  'c_press_ep_act',
+])
+
+const FLOW_SIGNALS = new Set([
+  'c_pump_bs_bl_flow_act',
+  'c_net_rem_flow_act',
+  'c_pump_fs_mid_flow_act',
 ])
 
 export function PatientDashboard() {
@@ -34,8 +36,13 @@ export function PatientDashboard() {
       .finally(() => setLoading(false))
   }, [id])
 
-  const filteredSignals = useMemo(
-    () => signals.filter(s => SIGNALS_TO_SHOW.has(s.internal_name)),
+  const pressureSignals = useMemo(
+    () => signals.filter(s => PRESSURE_SIGNALS.has(s.internal_name)),
+    [signals]
+  )
+
+  const flowSignals = useMemo(
+    () => signals.filter(s => FLOW_SIGNALS.has(s.internal_name)),
     [signals]
   )
 
@@ -48,9 +55,13 @@ export function PatientDashboard() {
       <h2 className="text-xl font-bold mb-5 text-(--text-primary)">Dashboard de Señales</h2>
 
       {loading ? <Spinner message="Cargando dashboard..." /> : (
-        filteredSignals.length === 0
-          ? <div className="text-center py-10 text-(--text-muted) text-sm">Sin señales disponibles</div>
-          : filteredSignals.map(s => <Chart key={s.signal_id} signal={s} />)
+        <>
+          {pressureSignals.length > 0 && <Chart title="Presiones" signals={pressureSignals} />}
+          {flowSignals.length > 0 && <Chart title="Flujos" signals={flowSignals} />}
+          {pressureSignals.length === 0 && flowSignals.length === 0 && (
+            <div className="text-center py-10 text-(--text-muted) text-sm">Sin señales disponibles</div>
+          )}
+        </>
       )}
     </div>
   )

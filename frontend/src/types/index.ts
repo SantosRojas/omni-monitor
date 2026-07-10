@@ -87,6 +87,7 @@ export interface TelemetryReading {
   raw_value?: number
   physical_value?: string
   unit?: string
+  signal_name?: string
 }
 
 export interface Signal {

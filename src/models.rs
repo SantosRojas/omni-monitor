@@ -164,6 +164,8 @@ pub struct TelemetryReading {
     pub raw_value: Option<i64>,
     pub physical_value: Option<String>,
     pub unit: Option<String>,
+    #[cfg_attr(feature = "ssr", sqlx(default))]
+    pub signal_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
