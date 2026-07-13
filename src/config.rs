@@ -15,6 +15,7 @@ pub struct MonitorConfig {
     pub jwt_issuer: String,
     pub admin_password: String,
     pub cors_origins: Vec<String>,
+    pub polling_interval_ms: u64,
 }
 
 impl MonitorConfig {
@@ -64,6 +65,10 @@ impl MonitorConfig {
             jwt_issuer: env::var("JWT_ISSUER").unwrap_or_else(|_| "monitor".into()),
             admin_password: env::var("ADMIN_PASSWORD").unwrap_or_else(|_| "admin123".into()),
             cors_origins,
+            polling_interval_ms: env::var("POLLING_INTERVAL_MS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(15000),
         })
     }
 }

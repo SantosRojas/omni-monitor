@@ -282,6 +282,20 @@ impl TryFromRow for TelemetryExportRow {
     }
 }
 
+impl TryFromRow for TherapyComment {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            id: col_i64(row, "id")?,
+            therapy_id: col_i64(row, "therapy_id")?,
+            author_name: col_str(row, "author_name")?,
+            comment: col_str(row, "comment")?,
+            created_at: col_opt_dt(row, "created_at")?,
+            deleted_at: col_opt_dt(row, "deleted_at")?,
+            deletion_reason: col_opt_str(row, "deletion_reason")?,
+        })
+    }
+}
+
 impl TryFromRow for TherapyRaw {
     fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
         Ok(Self {
@@ -477,6 +491,18 @@ impl DbPool {
                     )",
                 )
                 .execute(&pool).await?;
+                sqlx::query(
+                    "CREATE TABLE IF NOT EXISTS therapy_comments (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        therapy_id INTEGER NOT NULL,
+                        author_name TEXT NOT NULL,
+                        comment TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        deleted_at DATETIME,
+                        deletion_reason TEXT
+                    )",
+                )
+                .execute(&pool).await?;
                 Ok(Self::Sqlite(pool))
             }
             "postgres" | "pgsql" | "postgresql" => {
@@ -582,6 +608,18 @@ impl DbPool {
                         deleted_by TEXT NOT NULL,
                         deletion_reason TEXT NOT NULL,
                         deleted_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    )",
+                )
+                .execute(&pool).await?;
+                sqlx::query(
+                    "CREATE TABLE IF NOT EXISTS therapy_comments (
+                        id BIGSERIAL PRIMARY KEY,
+                        therapy_id BIGINT NOT NULL,
+                        author_name TEXT NOT NULL,
+                        comment TEXT NOT NULL,
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                        deleted_at TIMESTAMPTZ,
+                        deletion_reason TEXT
                     )",
                 )
                 .execute(&pool).await?;
@@ -691,6 +729,18 @@ impl DbPool {
                         deleted_by VARCHAR(255) NOT NULL,
                         deletion_reason TEXT NOT NULL,
                         deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )",
+                )
+                .execute(&pool).await?;
+                sqlx::query(
+                    "CREATE TABLE IF NOT EXISTS therapy_comments (
+                        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                        therapy_id BIGINT NOT NULL,
+                        author_name VARCHAR(255) NOT NULL,
+                        comment TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        deleted_at DATETIME,
+                        deletion_reason TEXT
                     )",
                 )
                 .execute(&pool).await?;
@@ -821,6 +871,18 @@ impl DbPool {
                             deleted_by NVARCHAR(MAX) NOT NULL,
                             deletion_reason NVARCHAR(MAX) NOT NULL,
                             deleted_at DATETIME2 DEFAULT CURRENT_TIMESTAMP
+                        )",
+                ).await?;
+                mssql.simple_query(
+                    "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'therapy_comments')
+                        CREATE TABLE therapy_comments (
+                            id BIGINT IDENTITY(1,1) PRIMARY KEY,
+                            therapy_id BIGINT NOT NULL,
+                            author_name NVARCHAR(255) NOT NULL,
+                            comment NVARCHAR(MAX) NOT NULL,
+                            created_at DATETIME2 DEFAULT CURRENT_TIMESTAMP,
+                            deleted_at DATETIME2,
+                            deletion_reason NVARCHAR(MAX)
                         )",
                 ).await?;
                 Ok(Self::Mssql(mssql))
@@ -1127,6 +1189,172 @@ impl DbPool {
             t
         }).collect();
         Ok(therapies)
+    }
+
+    pub async fn list_active_therapies(&self) -> Result<Vec<ActiveTherapy>, sqlx::Error> {
+        let raw: Vec<ActiveTherapyRaw> = match self {
+            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::Sqlite(p) => {
+                sqlx::query_as("SELECT t.id as therapy_id, t.patient_id, p.patient_id_str, t.started_at, m.serial_number, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id AND mi.is_active = 1 LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id AND mi.is_active = 1 LIMIT 1) as port, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'c_press_ap_act' ORDER BY te.timestamp DESC LIMIT 1) as arterial_pressure, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'c_press_vp_act' ORDER BY te.timestamp DESC LIMIT 1) as venous_pressure, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'c_pump_bs_bl_flow_act' ORDER BY te.timestamp DESC LIMIT 1) as blood_flow, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final FROM therapies t JOIN patients p ON t.patient_id = p.id LEFT JOIN machines m ON t.machine_id = m.id WHERE t.status = 'active' ORDER BY t.started_at DESC")
+                    .fetch_all(p).await?
+            }
+            Self::Postgres(p) => {
+                sqlx::query_as("SELECT t.id as therapy_id, t.patient_id, p.patient_id_str, t.started_at, m.serial_number, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id AND mi.is_active = true LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id AND mi.is_active = true LIMIT 1) as port, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'c_press_ap_act' ORDER BY te.timestamp DESC LIMIT 1) as arterial_pressure, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'c_press_vp_act' ORDER BY te.timestamp DESC LIMIT 1) as venous_pressure, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'c_pump_bs_bl_flow_act' ORDER BY te.timestamp DESC LIMIT 1) as blood_flow, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final FROM therapies t JOIN patients p ON t.patient_id = p.id LEFT JOIN machines m ON t.machine_id = m.id WHERE t.status = 'active' ORDER BY t.started_at DESC")
+                    .fetch_all(p).await?
+            }
+            Self::Mysql(p) => {
+                sqlx::query_as("SELECT t.id as therapy_id, t.patient_id, p.patient_id_str, t.started_at, m.serial_number, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id AND mi.is_active = 1 LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id AND mi.is_active = 1 LIMIT 1) as port, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'c_press_ap_act' ORDER BY te.timestamp DESC LIMIT 1) as arterial_pressure, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'c_press_vp_act' ORDER BY te.timestamp DESC LIMIT 1) as venous_pressure, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'c_pump_bs_bl_flow_act' ORDER BY te.timestamp DESC LIMIT 1) as blood_flow, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final FROM therapies t JOIN patients p ON t.patient_id = p.id LEFT JOIN machines m ON t.machine_id = m.id WHERE t.status = 'active' ORDER BY t.started_at DESC")
+                    .fetch_all(p).await?
+            }
+            Self::Mssql(db) => db.query_all::<ActiveTherapyRaw>(
+                "SELECT t.id as therapy_id, t.patient_id, p.patient_id_str, t.started_at, m.serial_number, (SELECT TOP 1 mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id AND mi.is_active = 1) as ip_address, (SELECT TOP 1 mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id AND mi.is_active = 1) as port, (SELECT TOP 1 te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'c_press_ap_act' ORDER BY te.timestamp DESC) as arterial_pressure, (SELECT TOP 1 te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'c_press_vp_act' ORDER BY te.timestamp DESC) as venous_pressure, (SELECT TOP 1 te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'c_pump_bs_bl_flow_act' ORDER BY te.timestamp DESC) as blood_flow, (SELECT TOP 1 s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC) as weight_initial_signal_id, (SELECT TOP 1 te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC) as weight_initial, (SELECT TOP 1 s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC) as weight_final_signal_id, (SELECT TOP 1 te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC) as weight_final FROM therapies t JOIN patients p ON t.patient_id = p.id LEFT JOIN machines m ON t.machine_id = m.id WHERE t.status = 'active' ORDER BY t.started_at DESC",
+                tp!()
+            ).await?,
+        };
+        let equivalences = self.load_equivalences().await.unwrap_or_default();
+        let therapy_ids: Vec<i64> = raw.iter().map(|r| r.therapy_id).collect();
+        let mut comments_by_therapy: std::collections::HashMap<i64, Vec<TherapyComment>> = std::collections::HashMap::new();
+        if !therapy_ids.is_empty() {
+            let all_comments = self.list_therapy_comments_bulk(&therapy_ids).await.unwrap_or_default();
+            for c in all_comments {
+                comments_by_therapy.entry(c.therapy_id).or_default().push(c);
+            }
+        }
+        let therapies: Vec<ActiveTherapy> = raw.into_iter().map(|r| {
+            let mut weight_initial = r.weight_initial.clone();
+            let mut weight_final = r.weight_final.clone();
+            if let (Some(sig_id), Some(ref val)) = (r.weight_initial_signal_id, weight_initial.clone()) {
+                if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
+                    weight_initial = Some(display.to_string());
+                }
+            }
+            if let (Some(sig_id), Some(ref val)) = (r.weight_final_signal_id, weight_final.clone()) {
+                if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
+                    weight_final = Some(display.to_string());
+                }
+            }
+            ActiveTherapy {
+                therapy_id: r.therapy_id,
+                patient_id: r.patient_id,
+                patient_id_str: r.patient_id_str,
+                started_at: r.started_at,
+                serial_number: r.serial_number,
+                ip_address: r.ip_address,
+                port: r.port,
+                arterial_pressure: r.arterial_pressure,
+                venous_pressure: r.venous_pressure,
+                blood_flow: r.blood_flow,
+                weight_initial,
+                weight_final,
+                comments: comments_by_therapy.remove(&r.therapy_id).unwrap_or_default(),
+            }
+        }).collect();
+        Ok(therapies)
+    }
+
+    pub async fn list_therapy_comments(&self, therapy_id: i64) -> Result<Vec<TherapyComment>, sqlx::Error> {
+        let sql = "SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE therapy_id = ? AND deleted_at IS NULL ORDER BY created_at ASC";
+        match self {
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => sqlx::query_as(sql).bind(therapy_id).fetch_all(p).await,
+            Self::Postgres(p) => sqlx::query_as(AssertSqlSafe(sql.replace('?', "$1"))).bind(therapy_id).fetch_all(p).await,
+            Self::Mysql(p) => sqlx::query_as(sql).bind(therapy_id).fetch_all(p).await,
+            Self::Mssql(db) => db.query_all::<TherapyComment>(&sql.replace('?', "@P1"), tp!(therapy_id)).await,
+        }
+    }
+
+    async fn list_therapy_comments_bulk(&self, therapy_ids: &[i64]) -> Result<Vec<TherapyComment>, sqlx::Error> {
+        if therapy_ids.is_empty() {
+            return Ok(vec![]);
+        }
+        let placeholders: Vec<String> = therapy_ids.iter().enumerate().map(|(i, _)| {
+            if matches!(self, Self::Postgres(_)) {
+                format!("${}", i + 1)
+            } else if matches!(self, Self::Mssql(_)) {
+                // For MSSQL we fetch individually below
+                String::new()
+            } else {
+                "?".to_string()
+            }
+        }).collect();
+        match self {
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => {
+                let sql = format!("SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE therapy_id IN ({}) AND deleted_at IS NULL ORDER BY created_at ASC", placeholders.join(","));
+                let mut q = sqlx::query_as::<_, TherapyComment>(AssertSqlSafe(sql));
+                for &id in therapy_ids { q = q.bind(id); }
+                q.fetch_all(p).await
+            }
+            Self::Postgres(p) => {
+                let sql = format!("SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE therapy_id IN ({}) AND deleted_at IS NULL ORDER BY created_at ASC", placeholders.join(","));
+                let mut q = sqlx::query_as::<_, TherapyComment>(AssertSqlSafe(sql));
+                for &id in therapy_ids { q = q.bind(id); }
+                q.fetch_all(p).await
+            }
+            Self::Mysql(p) => {
+                let sql = format!("SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE therapy_id IN ({}) AND deleted_at IS NULL ORDER BY created_at ASC", placeholders.join(","));
+                let mut q = sqlx::query_as::<_, TherapyComment>(AssertSqlSafe(sql));
+                for &id in therapy_ids { q = q.bind(id); }
+                q.fetch_all(p).await
+            }
+            Self::Mssql(_db) => {
+                let mut all = Vec::new();
+                for &tid in therapy_ids {
+                    if let Ok(mut comments) = self.list_therapy_comments(tid).await {
+                        all.append(&mut comments);
+                    }
+                }
+                Ok(all)
+            }
+        }
+    }
+
+    pub async fn create_therapy_comment(&self, therapy_id: i64, author_name: &str, comment: &str) -> Result<TherapyComment, sqlx::Error> {
+        let insert_sql = match self {
+            Self::Mssql(_) => "INSERT INTO therapy_comments (therapy_id, author_name, comment) OUTPUT INSERTED.* VALUES (@P1, @P2, @P3)".to_string(),
+            _ => "INSERT INTO therapy_comments (therapy_id, author_name, comment) VALUES (?, ?, ?)".to_string(),
+        };
+        let last_id = match self {
+            Self::NoDb => return Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => {
+                sqlx::query(AssertSqlSafe(insert_sql)).bind(therapy_id).bind(author_name).bind(comment).execute(p).await?.last_insert_rowid()
+            }
+            Self::Postgres(p) => {
+                sqlx::query_scalar::<_, i64>("INSERT INTO therapy_comments (therapy_id, author_name, comment) VALUES ($1, $2, $3) RETURNING id")
+                    .bind(therapy_id).bind(author_name).bind(comment).fetch_one(p).await?
+            }
+            Self::Mysql(p) => {
+                sqlx::query(AssertSqlSafe(insert_sql)).bind(therapy_id).bind(author_name).bind(comment).execute(p).await?.last_insert_id() as i64
+            }
+            Self::Mssql(db) => {
+                return db.query_one::<TherapyComment>(&insert_sql, tp!(therapy_id, author_name, comment)).await?.ok_or_else(|| sqlx::Error::Protocol("No comment returned".into()));
+            }
+        };
+        self.find_therapy_comment_by_id(last_id).await
+    }
+
+    async fn find_therapy_comment_by_id(&self, id: i64) -> Result<TherapyComment, sqlx::Error> {
+        let sql = "SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE id = ?";
+        match self {
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => sqlx::query_as(sql).bind(id).fetch_one(p).await,
+            Self::Postgres(p) => sqlx::query_as(AssertSqlSafe(sql.replace('?', "$1"))).bind(id).fetch_one(p).await,
+            Self::Mysql(p) => sqlx::query_as(sql).bind(id).fetch_one(p).await,
+            Self::Mssql(db) => db.query_one::<TherapyComment>(&sql.replace('?', "@P1"), tp!(id)).await?.ok_or_else(|| sqlx::Error::Protocol("Comment not found".into())),
+        }
+    }
+
+    pub async fn delete_therapy_comment(&self, comment_id: i64, deletion_reason: &str) -> Result<(), sqlx::Error> {
+        match self {
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => sqlx::query("UPDATE therapy_comments SET deleted_at = CURRENT_TIMESTAMP, deletion_reason = ? WHERE id = ?")
+                .bind(deletion_reason).bind(comment_id).execute(p).await.map(|_| ()),
+            Self::Postgres(p) => sqlx::query("UPDATE therapy_comments SET deleted_at = CURRENT_TIMESTAMP, deletion_reason = $1 WHERE id = $2")
+                .bind(deletion_reason).bind(comment_id).execute(p).await.map(|_| ()),
+            Self::Mysql(p) => sqlx::query("UPDATE therapy_comments SET deleted_at = CURRENT_TIMESTAMP, deletion_reason = ? WHERE id = ?")
+                .bind(deletion_reason).bind(comment_id).execute(p).await.map(|_| ()),
+            Self::Mssql(db) => db.execute("UPDATE therapy_comments SET deleted_at = CURRENT_TIMESTAMP, deletion_reason = @P1 WHERE id = @P2", tp!(deletion_reason, comment_id)).await.map(|_| ()),
+        }
     }
 
     // --- Telemetry ---
@@ -1909,7 +2137,7 @@ impl DbPool {
                     sqlx::query("INSERT INTO users (username, password, full_name, email, role, active) VALUES ('admin', ?, 'Administrator', 'admin@monitor.local', 'admin', TRUE)")
                         .bind(&pw).execute(p).await?;
                 }
-                Self::Mssql(db) => {
+            Self::Mssql(db) => {
                     db.execute("INSERT INTO users (username, password, full_name, email, role, active) VALUES ('admin', @P1, 'Administrator', 'admin@monitor.local', 'admin', 1)", tp!(pw)).await?;
                 }
             }
@@ -1945,6 +2173,45 @@ struct TherapyRaw {
 impl From<TherapyRaw> for TherapyWithMachine {
     fn from(r: TherapyRaw) -> Self {
         Self { id: r.id, started_at: r.started_at, ended_at: r.ended_at, status: r.status, machine_id: r.machine_id, serial_number: r.serial_number, software_version: r.software_version, ip_address: r.ip_address, port: r.port, therapy_type: r.therapy_type, kit: r.kit, weight_initial: r.weight_initial, weight_final: r.weight_final }
+    }
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct ActiveTherapyRaw {
+    pub therapy_id: i64,
+    pub patient_id: i64,
+    pub patient_id_str: String,
+    pub started_at: Option<NaiveDateTime>,
+    pub serial_number: Option<String>,
+    pub ip_address: Option<String>,
+    pub port: Option<i32>,
+    pub arterial_pressure: Option<String>,
+    pub venous_pressure: Option<String>,
+    pub blood_flow: Option<String>,
+    pub weight_initial: Option<String>,
+    pub weight_final: Option<String>,
+    pub weight_initial_signal_id: Option<i64>,
+    pub weight_final_signal_id: Option<i64>,
+}
+
+impl TryFromRow for ActiveTherapyRaw {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            therapy_id: col_i64(row, "therapy_id")?,
+            patient_id: col_i64(row, "patient_id")?,
+            patient_id_str: col_str(row, "patient_id_str")?,
+            started_at: col_opt_dt(row, "started_at")?,
+            serial_number: col_opt_str(row, "serial_number")?,
+            ip_address: col_opt_str(row, "ip_address")?,
+            port: col_val::<i32>(row, "port").ok(),
+            arterial_pressure: col_opt_str(row, "arterial_pressure")?,
+            venous_pressure: col_opt_str(row, "venous_pressure")?,
+            blood_flow: col_opt_str(row, "blood_flow")?,
+            weight_initial: col_opt_str(row, "weight_initial")?,
+            weight_final: col_opt_str(row, "weight_final")?,
+            weight_initial_signal_id: col_opt_i64(row, "weight_initial_signal_id")?,
+            weight_final_signal_id: col_opt_i64(row, "weight_final_signal_id")?,
+        })
     }
 }
 

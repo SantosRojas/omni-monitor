@@ -53,6 +53,23 @@ pub struct Patient {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActiveTherapy {
+    pub therapy_id: i64,
+    pub patient_id: i64,
+    pub patient_id_str: String,
+    pub started_at: Option<NaiveDateTime>,
+    pub serial_number: Option<String>,
+    pub ip_address: Option<String>,
+    pub port: Option<i32>,
+    pub arterial_pressure: Option<String>,
+    pub venous_pressure: Option<String>,
+    pub blood_flow: Option<String>,
+    pub weight_initial: Option<String>,
+    pub weight_final: Option<String>,
+    pub comments: Vec<TherapyComment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ssr", derive(FromRow))]
 pub struct Machine {
     pub id: i64,

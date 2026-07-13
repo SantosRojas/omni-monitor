@@ -210,3 +210,19 @@ export interface DashboardValue {
 export interface PatientDashboard {
   signals: DashboardSignal[]
 }
+
+export interface ActiveTherapy {
+  therapy_id: number
+  patient_id: number
+  patient_id_str: string
+  started_at?: string
+  serial_number?: string
+  ip_address?: string
+  port?: number
+  arterial_pressure?: string
+  venous_pressure?: string
+  blood_flow?: string
+  weight_initial?: string
+  weight_final?: string
+  comments: TherapyComment[]
+}

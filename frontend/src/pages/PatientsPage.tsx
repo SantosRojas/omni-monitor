@@ -10,12 +10,12 @@ import {
   type SortingState,
   type ColumnFiltersState,
 } from '@tanstack/react-table'
-import type { Patient, TherapyWithMachine } from '../types'
+import type { Patient } from '../types'
 import * as patientsApi from '../api/patients'
 import { Spinner, Badge, SearchInput, Button } from '../components/ui'
 import { useToast } from '../contexts/ToastContext'
 import { formatDateShort } from '../utils/date'
-import { PatientComponent } from '../components/patient'
+import { ActiveTherapiesTable } from '../components/ActiveTherapiesTable'
 
 const columnHelper = createColumnHelper<Patient>()
 
@@ -32,7 +32,6 @@ export function PatientsPage() {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 })
   const [total, setTotal] = useState(0)
-  const [activeTherapiesByPatientId, setActiveTherapiesByPatientId] = useState<Record<number, TherapyWithMachine>>({})
 
   const fetchData = useCallback(async (page: number, perPage: number, q: string) => {
     setLoading(true)
@@ -50,46 +49,6 @@ export function PatientsPage() {
   useEffect(() => {
     fetchData(pagination.pageIndex + 1, pagination.pageSize, search)
   }, [pagination.pageIndex, pagination.pageSize, search, fetchData])
-
-  const activePatients = useMemo(
-    () => data.filter(patient => (patient.active_therapy_count ?? 0) > 0),
-    [data],
-  )
-
-  useEffect(() => {
-    let cancelled = false
-
-    const loadActiveTherapies = async () => {
-      if (activePatients.length === 0) {
-        setActiveTherapiesByPatientId({})
-        return
-      }
-
-      const entries = await Promise.all(
-        activePatients.map(async patient => {
-          const therapies = await patientsApi.getTherapies(patient.id)
-          const activeTherapy = therapies.find(therapy => therapy.status === 'active')
-          return [patient.id, activeTherapy] as const
-        }),
-      )
-
-      if (cancelled) return
-
-      setActiveTherapiesByPatientId(
-        Object.fromEntries(entries.filter(([, therapy]) => therapy)) as Record<number, TherapyWithMachine>,
-      )
-    }
-
-    loadActiveTherapies().catch(e => {
-      if (!cancelled) {
-        showToast(e instanceof Error ? e.message : 'Error al cargar terapias activas')
-      }
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [activePatients, showToast])
 
   const columns = useMemo(() => [
     columnHelper.accessor('patient_id_str', {
@@ -137,44 +96,10 @@ export function PatientsPage() {
         </div>
       </div>
 
+      <ActiveTherapiesTable />
+
       {loading ? <Spinner message="Cargando pacientes..." /> : (
         <>
-          {activePatients.length > 0 && (
-            <div className="glass mb-4 p-4">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-(--text-muted)">
-                  Pacientes con terapia activa
-                </h2>
-                <span className="text-xs text-(--text-muted)">{activePatients.length} activos</span>
-              </div>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-                {activePatients.map(patient => (
-                  (() => {
-                    const activeTherapy = activeTherapiesByPatientId[patient.id]
-                    const handleClick = () => {
-                      if (activeTherapy?.ip_address) {
-                        const baseUrl = activeTherapy.port ? `http://${activeTherapy.ip_address}:${activeTherapy.port}` : `http://${activeTherapy.ip_address}`
-                        window.open(`${baseUrl}/therapy/${activeTherapy.id}`, '_blank')
-                        return
-                      }
-
-                      showToast('No se encuentra la IP de la máquina registrada')
-                    }
-
-                    return (
-                      <PatientComponent
-                        key={patient.patient_id_str}
-                        id={patient.id}
-                        patient_id={patient.patient_id_str}
-                        onClick={handleClick}
-                      />
-                    )
-                  })()
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="mb-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-(--text-muted)">
               Historial de pacientes

@@ -67,3 +67,11 @@ pub async fn get_active_device(
     let device = state.pool.find_active_device(id).await?.ok_or(AppError::NotFound)?;
     Ok(Json(device))
 }
+
+pub async fn list_active_therapies(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<JwtClaims>,
+) -> Result<Json<Vec<ActiveTherapy>>, AppError> {
+    let therapies = state.pool.list_active_therapies().await?;
+    Ok(Json(therapies))
+}

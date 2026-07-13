@@ -1,4 +1,6 @@
 pub mod auth;
+pub mod comments;
+pub mod config;
 pub mod dashboard;
 pub mod equivalences;
 pub mod export;
@@ -93,7 +95,9 @@ pub fn create_router(state: AppState) -> Router {
 
     let protected = Router::new()
         .route("/auth/me", get(auth::me))
+        .route("/config", get(config::get_config))
         .route("/patients", get(patients::list_patients))
+        .route("/patients/active-therapies", get(patients::list_active_therapies))
         .route("/patients/{id}", get(patients::get_patient))
         .route("/patients/{id}/therapies", get(patients::get_therapies))
         .route("/patients/{id}/history", get(patients::get_history))
@@ -102,6 +106,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/patients/{id}/dashboard", get(dashboard::patient_dashboard))
         .route("/therapies/{id}/dashboard", get(dashboard::therapy_dashboard))
         .route("/therapies/{id}/export", get(export::export_therapy))
+        .route("/therapies/{id}/comments", get(comments::list_comments).post(comments::create_comment))
+        .route("/therapies/{therapy_id}/comments/{comment_id}", delete(comments::delete_comment))
         .route("/machines", get(machine_ips::list_machines))
         .route("/admin/machine-ips", get(machine_ips::list).post(machine_ips::create))
         .route("/admin/machine-ips/{id}", put(machine_ips::update).delete(machine_ips::delete_ip))
