@@ -12,14 +12,14 @@ import { ArrowLeft, FileDown, LineChart, Clock } from 'lucide-react'
 import type { Patient, TherapyWithMachine } from '../types'
 import * as patientsApi from '../api/patients'
 import { triggerPatientExport } from '../api/export'
-import { Spinner, Badge, ColumnFilter, Button, SearchInput } from '../components/ui'
+import { Spinner, ColumnFilter, Button, SearchInput } from '../components/ui'
 import { useToast } from '../contexts/ToastContext'
 import { formatDate, formatDateShort } from '../utils/date'
 
 const therapyHelper = createColumnHelper<TherapyWithMachine>()
 
 const hideSm = (id: string) =>
-  ['ended_at', 'software_version'].includes(id) ? 'hidden md:table-cell' : ''
+  ['ended_at', 'therapy_type'].includes(id) ? 'hidden md:table-cell' : ''
 
 export function PatientDetail() {
   const { showToast } = useToast()
@@ -54,17 +54,23 @@ export function PatientDetail() {
       header: 'Fin',
       cell: i => formatDate(i.getValue()),
     }),
-    therapyHelper.accessor('status', {
-      header: 'Estado',
-      cell: i => {
-        const v = i.getValue()
-        if (v === 'active') return <Badge variant="active">Activo</Badge>
-        if (v === 'completed') return <Badge variant="completed">Completada</Badge>
-        return <Badge variant="inactive">{v || '-'}</Badge>
-      },
+    therapyHelper.accessor('therapy_type', {
+      header: 'Tipo de terapia',
+      cell: i => i.getValue() ?? '-',
+    }),
+    therapyHelper.accessor('kit', {
+      header: 'Kit usado',
+      cell: i => i.getValue() ?? '-',
     }),
     therapyHelper.accessor('serial_number', { header: 'Máquina' }),
-    therapyHelper.accessor('software_version', { header: 'Versión' }),
+    therapyHelper.accessor('weight_initial', {
+      header: 'Peso Inicial',
+      cell: i => i.getValue() ?? '-',
+    }),
+    therapyHelper.accessor('weight_final', {
+      header: 'Peso Final',
+      cell: i => i.getValue() ?? '-',
+    }),
   ], [])
 
   const therapyTable = useReactTable({

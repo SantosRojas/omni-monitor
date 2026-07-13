@@ -84,6 +84,10 @@ pub struct TherapyWithMachine {
     pub software_version: Option<String>,
     pub ip_address: Option<String>,
     pub port: Option<i32>,
+    pub therapy_type: Option<String>,
+    pub kit: Option<String>,
+    pub weight_initial: Option<String>,
+    pub weight_final: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -301,4 +305,9 @@ pub struct DashboardParams {
     pub signal_ids: Option<String>,
     pub from: Option<String>,
     pub to: Option<String>,
+}
+
+pub fn lookup_equivalence<'a>(signal_id: i64, value_str: &str, equivalences: &'a [AttributeEquivalence]) -> Option<&'a str> {
+    let value: f64 = value_str.parse().ok()?;
+    equivalences.iter().find(|e| e.signal_id == signal_id && (e.numeric_value - value).abs() <= (e.numeric_value.abs().max(value.abs()) * 1e-10 + 1e-9)).map(|e| e.display_name.as_str())
 }

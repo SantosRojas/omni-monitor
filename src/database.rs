@@ -295,6 +295,14 @@ impl TryFromRow for TherapyRaw {
             software_version: col_opt_str(row, "software_version")?,
             ip_address: col_opt_str(row, "ip_address")?,
             port: col_val::<i32>(row, "port").ok(),
+            therapy_type: col_opt_str(row, "therapy_type")?,
+            kit: col_opt_str(row, "kit")?,
+            weight_initial: col_opt_str(row, "weight_initial")?,
+            weight_final: col_opt_str(row, "weight_final")?,
+            therapy_type_signal_id: col_opt_i64(row, "therapy_type_signal_id")?,
+            kit_signal_id: col_opt_i64(row, "kit_signal_id")?,
+            weight_initial_signal_id: col_opt_i64(row, "weight_initial_signal_id")?,
+            weight_final_signal_id: col_opt_i64(row, "weight_final_signal_id")?,
         })
     }
 }
@@ -1077,23 +1085,48 @@ impl DbPool {
         let raw: Vec<TherapyRaw> = match self {
             Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
             Self::Sqlite(p) => {
-                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = ? ORDER BY t.started_at DESC")
+                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = ? ORDER BY t.started_at DESC")
                     .bind(patient_id).fetch_all(p).await?
             }
             Self::Postgres(p) => {
-                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = $1 ORDER BY t.started_at DESC")
+                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = $1 ORDER BY t.started_at DESC")
                     .bind(patient_id).fetch_all(p).await?
             }
             Self::Mysql(p) => {
-                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = ? ORDER BY t.started_at DESC")
+                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = ? ORDER BY t.started_at DESC")
                     .bind(patient_id).fetch_all(p).await?
             }
             Self::Mssql(db) => db.query_all::<TherapyRaw>(
-                "SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT TOP 1 mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id) as ip_address, (SELECT TOP 1 mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id) as port FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = @P1 ORDER BY t.started_at DESC",
+                "SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT TOP 1 mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id) as ip_address, (SELECT TOP 1 mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id) as port, (SELECT TOP 1 s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC) as therapy_type_signal_id, (SELECT TOP 1 te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC) as therapy_type, (SELECT TOP 1 s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC) as kit_signal_id, (SELECT TOP 1 te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC) as kit, (SELECT TOP 1 s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC) as weight_initial_signal_id, (SELECT TOP 1 te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC) as weight_initial, (SELECT TOP 1 s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC) as weight_final_signal_id, (SELECT TOP 1 te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC) as weight_final FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.patient_id = @P1 ORDER BY t.started_at DESC",
                 tp!(patient_id)
             ).await?,
         };
-        Ok(raw.into_iter().map(TherapyWithMachine::from).collect())
+        let equivalences = self.load_equivalences().await.unwrap_or_default();
+        let therapies: Vec<TherapyWithMachine> = raw.into_iter().map(|r| {
+            let mut t = TherapyWithMachine::from(r.clone());
+            if let (Some(sig_id), Some(ref val)) = (r.therapy_type_signal_id, t.therapy_type.clone()) {
+                if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
+                    t.therapy_type = Some(display.to_string());
+                }
+            }
+            if let (Some(sig_id), Some(ref val)) = (r.kit_signal_id, t.kit.clone()) {
+                if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
+                    t.kit = Some(display.to_string());
+                }
+            }
+            if let (Some(sig_id), Some(ref val)) = (r.weight_initial_signal_id, t.weight_initial.clone()) {
+                if let Some(display) = lookup_equivalence(sig_id, val, &equivalences) {
+                    t.weight_initial = Some(display.to_string());
+                }
+            }
+            if let (Some(sig_id), Some(ref val)) = (r.weight_final_signal_id, t.weight_final.clone()) {
+                if let Some(display) = lookup_equivalence(sig_id, val, &equivalences) {
+                    t.weight_final = Some(display.to_string());
+                }
+            }
+            t
+        }).collect();
+        Ok(therapies)
     }
 
     // --- Telemetry ---
@@ -1899,11 +1932,19 @@ struct TherapyRaw {
     pub software_version: Option<String>,
     pub ip_address: Option<String>,
     pub port: Option<i32>,
+    pub therapy_type: Option<String>,
+    pub kit: Option<String>,
+    pub weight_initial: Option<String>,
+    pub weight_final: Option<String>,
+    pub therapy_type_signal_id: Option<i64>,
+    pub kit_signal_id: Option<i64>,
+    pub weight_initial_signal_id: Option<i64>,
+    pub weight_final_signal_id: Option<i64>,
 }
 
 impl From<TherapyRaw> for TherapyWithMachine {
     fn from(r: TherapyRaw) -> Self {
-        Self { id: r.id, started_at: r.started_at, ended_at: r.ended_at, status: r.status, machine_id: r.machine_id, serial_number: r.serial_number, software_version: r.software_version, ip_address: r.ip_address, port: r.port }
+        Self { id: r.id, started_at: r.started_at, ended_at: r.ended_at, status: r.status, machine_id: r.machine_id, serial_number: r.serial_number, software_version: r.software_version, ip_address: r.ip_address, port: r.port, therapy_type: r.therapy_type, kit: r.kit, weight_initial: r.weight_initial, weight_final: r.weight_final }
     }
 }
 

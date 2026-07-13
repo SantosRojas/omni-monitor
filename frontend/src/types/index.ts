@@ -54,6 +54,10 @@ export interface TherapyWithMachine {
   software_version?: string
   ip_address?: string
   port?: number
+  therapy_type?: string
+  kit?: string
+  weight_initial?: string
+  weight_final?: string
 }
 
 export interface MachineIp {

@@ -36,11 +36,6 @@ pub async fn export_therapy(
     Ok(ExportResponse { bytes, filename })
 }
 
-fn lookup_equivalence<'a>(signal_id: i64, value_str: &str, equivalences: &'a [AttributeEquivalence]) -> Option<&'a str> {
-    let value: f64 = value_str.parse().ok()?;
-    equivalences.iter().find(|e| e.signal_id == signal_id && (e.numeric_value - value).abs() <= (e.numeric_value.abs().max(value.abs()) * 1e-10 + 1e-9)).map(|e| e.display_name.as_str())
-}
-
 fn build_excel(data: &[TelemetryExportRow], equivalences: &[AttributeEquivalence]) -> Result<Vec<u8>, String> {
     let mut workbook = Workbook::new();
     let sheet = workbook.add_worksheet();
