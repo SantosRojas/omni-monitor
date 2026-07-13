@@ -22,6 +22,14 @@ const FLOW_SIGNALS = new Set([
   'c_pump_fs_mid_flow_act',
 ])
 
+const WEIGHT_SIGNALS = new Set([
+  'g_patient_data_weight_set',
+])
+
+const VOLUME_SIGNALS = new Set([
+  'c_acc_net_rem_vol_act',
+])
+
 export function TherapyDetail() {
   const { showToast } = useToast()
   const { id } = useParams<{ id: string }>()
@@ -47,6 +55,16 @@ export function TherapyDetail() {
     [signals]
   )
 
+  const weightSignals = useMemo(
+    () => signals.filter(s => WEIGHT_SIGNALS.has(s.internal_name)),
+    [signals]
+  )
+
+  const volumeSignals = useMemo(
+    () => signals.filter(s => VOLUME_SIGNALS.has(s.internal_name)),
+    [signals]
+  )
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
@@ -65,7 +83,9 @@ export function TherapyDetail() {
         <>
           {pressureSignals.length > 0 && <Chart title="Presiones" signals={pressureSignals} />}
           {flowSignals.length > 0 && <Chart title="Flujos" signals={flowSignals} />}
-          {pressureSignals.length === 0 && flowSignals.length === 0 && (
+          {weightSignals.length > 0 && <Chart title="Peso" signals={weightSignals} />}
+          {volumeSignals.length > 0 && <Chart title="Volumen Neto" signals={volumeSignals} />}
+          {pressureSignals.length === 0 && flowSignals.length === 0 && weightSignals.length === 0 && volumeSignals.length === 0 && (
             <div className="text-center py-10 text-(--text-muted) text-sm">Sin datos de señales para esta terapia</div>
           )}
         </>

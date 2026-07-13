@@ -22,6 +22,7 @@ const SIGNAL_COLORS: Record<string, string> = {
   'c_pump_fs_mid_flow_act': '#22c55e',
   'd_renal_dose_act': '#f59e0b',
   'c_acc_net_rem_vol_act': '#a855f7',
+  'g_patient_data_weight_set': '#ec4899',
 }
 
 const FALLBACK_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#84cc16']

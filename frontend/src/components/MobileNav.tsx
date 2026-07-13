@@ -30,7 +30,7 @@ export function MobileNav() {
             end
             className={`relative flex flex-col items-center gap-0.5 min-w-0 px-3 py-1.5 rounded-sm no-underline transition-all duration-200
               ${active
-                ? '!text-(--accent)'
+                ? 'text-(--accent)!'
                 : 'text-(--text-muted) hover:text-(--text-secondary)'
               }`}
           >
