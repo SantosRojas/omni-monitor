@@ -139,14 +139,14 @@ export function PatientsPage() {
 
       {loading ? <Spinner message="Cargando pacientes..." /> : (
         <>
-          <div className="glass mb-4 p-4">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-(--text-muted)">
-                Pacientes con terapia activa
-              </h2>
-              <span className="text-xs text-(--text-muted)">{activePatients.length} activos</span>
-            </div>
-            {activePatients.length > 0 ? (
+          {activePatients.length > 0 && (
+            <div className="glass mb-4 p-4">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-(--text-muted)">
+                  Pacientes con terapia activa
+                </h2>
+                <span className="text-xs text-(--text-muted)">{activePatients.length} activos</span>
+              </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
                 {activePatients.map(patient => (
                   (() => {
@@ -172,18 +172,13 @@ export function PatientsPage() {
                   })()
                 ))}
               </div>
-            ) : (
-              <div className="text-sm text-(--text-muted)">No hay pacientes con terapia activa.</div>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="mb-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-(--text-muted)">
               Historial de pacientes
             </h2>
-            <p className="text-xs text-(--text-muted) mt-1">
-              Solo se muestran las terapias completas.
-            </p>
           </div>
 
           <div className="glass overflow-x-auto">
