@@ -59,7 +59,7 @@ export function PatientsPage() {
       cell: info => formatDateShort(info.getValue()),
     }),
     columnHelper.accessor('completed_therapy_count', {
-      header: 'Terapias Comp.',
+      header: 'Terapias Completadas',
       cell: info => (
         <Badge variant={info.getValue() && info.getValue()! > 0 ? 'active' : 'inactive'}>
           {info.getValue() ?? 0}
@@ -86,24 +86,23 @@ export function PatientsPage() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-5">
-        <div className="w-full sm:max-w-md">
-          <SearchInput
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPagination(p => ({ ...p, pageIndex: 0 })) }}
-            placeholder="Buscar paciente..."
-          />
-        </div>
-      </div>
-
       <ActiveTherapiesTable />
 
       {loading ? <Spinner message="Cargando pacientes..." /> : (
         <>
           <div className="glass overflow-x-auto">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-(--text-muted) px-4 py-3">
-              Historial de pacientes
-            </h2>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-(--text-muted)">
+                Historial de pacientes
+              </h2>
+              <div className="w-full sm:max-w-md">
+                <SearchInput
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setPagination(p => ({ ...p, pageIndex: 0 })) }}
+                  placeholder="Buscar paciente..."
+                />
+              </div>
+            </div>
             <table className="w-full border-collapse">
               <thead>
                 {table.getHeaderGroups().map(hg => (

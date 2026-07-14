@@ -98,6 +98,7 @@ export function AdminSignals() {
     getSortedRowModel: getSortedRowModel(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    defaultColumn: { filterFn: 'includesString' },
     state: { sorting, columnFilters },
     initialState: { pagination: { pageSize: 25 } },
   })

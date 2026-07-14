@@ -136,6 +136,7 @@ export function AdminEquivalences() {
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: 'includesString',
+    defaultColumn: { filterFn: 'includesString' },
     state: { sorting, columnFilters, globalFilter },
     initialState: { pagination: { pageSize: 25 } },
   })

@@ -159,6 +159,7 @@ export function AdminUsers() {
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: 'includesString',
+    defaultColumn: { filterFn: 'includesString' },
     state: { sorting, columnFilters, globalFilter },
   })
 
