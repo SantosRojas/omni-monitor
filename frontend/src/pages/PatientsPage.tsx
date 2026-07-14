@@ -100,13 +100,10 @@ export function PatientsPage() {
 
       {loading ? <Spinner message="Cargando pacientes..." /> : (
         <>
-          <div className="mb-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-(--text-muted)">
+          <div className="glass overflow-x-auto">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-(--text-muted) px-4 py-3">
               Historial de pacientes
             </h2>
-          </div>
-
-          <div className="glass overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
                 {table.getHeaderGroups().map(hg => (
