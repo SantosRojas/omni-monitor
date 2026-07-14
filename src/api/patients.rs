@@ -36,9 +36,12 @@ pub async fn get_therapies(
     State(state): State<AppState>,
     Extension(_claims): Extension<JwtClaims>,
     Path(id): Path<i64>,
-) -> Result<Json<Vec<TherapyWithMachine>>, AppError> {
-    let therapies = state.pool.list_therapies_by_patient(id).await?;
-    Ok(Json(therapies))
+    Query(params): Query<PaginationParams>,
+) -> Result<Json<PaginatedResponse<TherapyWithMachine>>, AppError> {
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
+    let result = state.pool.list_therapies_by_patient_paginated(id, page, per_page).await?;
+    Ok(Json(result))
 }
 
 pub async fn get_history(
@@ -66,6 +69,18 @@ pub async fn get_active_device(
 ) -> Result<Json<ActiveDevice>, AppError> {
     let device = state.pool.find_active_device(id).await?.ok_or(AppError::NotFound)?;
     Ok(Json(device))
+}
+
+pub async fn get_therapy(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<JwtClaims>,
+    Path(id): Path<i64>,
+) -> Result<Json<TherapyWithMachine>, AppError> {
+    let therapy = state.pool
+        .find_therapy_by_id(id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    Ok(Json(therapy))
 }
 
 pub async fn list_active_therapies(

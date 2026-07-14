@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, FileDown } from 'lucide-react'
-import type { DashboardSignal } from '../types'
+import type { DashboardSignal, TherapyWithMachine } from '../types'
 import * as patientsApi from '../api/patients'
 import { triggerTherapyExport } from '../api/export'
 import { Spinner } from '../components/ui/Spinner'
@@ -35,14 +35,24 @@ export function TherapyDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [signals, setSignals] = useState<DashboardSignal[]>([])
+  const [therapy, setTherapy] = useState<TherapyWithMachine | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!id) return
-    patientsApi.getTherapyDashboard(Number(id))
-      .then(res => setSignals(res.signals))
-      .catch(e => showToast(e instanceof Error ? e.message : 'Error al cargar terapia'))
+    const tid = Number(id)
+    const prevTitle = document.title
+    Promise.all([
+      patientsApi.getTherapyDashboard(tid),
+      patientsApi.getTherapy(tid),
+    ]).then(([s, t]) => {
+      setSignals(s.signals)
+      setTherapy(t)
+      const title = [t.patient_id_str, t.serial_number].filter(Boolean).join(' - ')
+      if (title) document.title = title
+    }).catch(e => showToast(e instanceof Error ? e.message : 'Error al cargar terapia'))
       .finally(() => setLoading(false))
+    return () => { document.title = prevTitle }
   }, [id])
 
   const pressureSignals = useMemo(
@@ -72,7 +82,9 @@ export function TherapyDetail() {
           <button onClick={() => navigate(-1)} className="px-3 py-1.5 flex items-center gap-1.5 text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) cursor-pointer">
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <h2 className="text-lg md:text-xl font-bold text-(--text-primary)">Terapia #{id}</h2>
+          <h2 className="text-lg md:text-xl font-bold text-(--text-primary)">
+            {therapy ? `${therapy.patient_id_str ?? ''}${therapy.patient_id_str && therapy.serial_number ? ' - ' : ''}${therapy.serial_number ?? ''}` : `Terapia #${id}`}
+          </h2>
         </div>
         <button onClick={() => triggerTherapyExport(Number(id)).catch(e => showToast(e instanceof Error ? e.message : 'Error al exportar'))} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm border border-(--glass-border) bg-(--surface-btn) text-(--text-secondary) hover:bg-(--surface-btn-hover) cursor-pointer">
           <FileDown className="w-4 h-4" /> Exportar

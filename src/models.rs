@@ -105,6 +105,7 @@ pub struct TherapyWithMachine {
     pub kit: Option<String>,
     pub weight_initial: Option<String>,
     pub weight_final: Option<String>,
+    pub patient_id_str: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

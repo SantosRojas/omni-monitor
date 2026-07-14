@@ -58,6 +58,7 @@ export interface TherapyWithMachine {
   kit?: string
   weight_initial?: string
   weight_final?: string
+  patient_id_str?: string
 }
 
 export interface MachineIp {

@@ -5,6 +5,7 @@ import {
   getCoreRowModel,
   getFilteredRowModel,
   getSortedRowModel,
+  getPaginationRowModel,
   createColumnHelper,
 } from '@tanstack/react-table'
 import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
@@ -12,7 +13,7 @@ import { ArrowLeft, FileDown, LineChart, Clock } from 'lucide-react'
 import type { Patient, TherapyWithMachine } from '../types'
 import * as patientsApi from '../api/patients'
 import { triggerPatientExport } from '../api/export'
-import { Spinner, ColumnFilter, Button, SearchInput } from '../components/ui'
+import { Spinner, ColumnFilter, Button, Select, Pagination } from '../components/ui'
 import { useToast } from '../contexts/ToastContext'
 import { formatDate, formatDateShort } from '../utils/date'
 
@@ -30,20 +31,23 @@ export function PatientDetail() {
   const [loading, setLoading] = useState(true)
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [globalFilter, setGlobalFilter] = useState('')
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 })
+  const [total, setTotal] = useState(0)
 
   useEffect(() => {
     if (!id) return
     const pid = Number(id)
+    const page = pagination.pageIndex + 1
     Promise.all([
       patientsApi.getPatient(pid),
-      patientsApi.getTherapies(pid),
+      patientsApi.getTherapies(pid, page, pagination.pageSize),
     ]).then(([p, t]) => {
       setPatient(p)
-      setTherapies(t)
+      setTherapies(t.data ?? [])
+      setTotal(t.total ?? 0)
     }).catch(e => showToast(e instanceof Error ? e.message : 'Error al cargar paciente'))
       .finally(() => setLoading(false))
-  }, [id])
+  }, [id, pagination.pageIndex, pagination.pageSize])
 
   const therapyColumns = useMemo(() => [
     therapyHelper.accessor('started_at', {
@@ -79,11 +83,13 @@ export function PatientDetail() {
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn: 'includesString',
-    state: { sorting, columnFilters, globalFilter },
+    onPaginationChange: setPagination,
+    manualPagination: true,
+    pageCount: Math.ceil(total / pagination.pageSize),
+    state: { sorting, columnFilters, pagination },
   })
 
   if (loading) return <Spinner message="Cargando paciente..." />
@@ -121,10 +127,14 @@ export function PatientDetail() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-3">
+      <div className="flex items-center gap-3 mb-3">
         <h3 className="text-base md:text-lg font-semibold text-(--text-primary)">Terapias</h3>
-        <div className="w-full sm:w-64 sm:ml-auto">
-          <SearchInput value={globalFilter ?? ''} onChange={e => setGlobalFilter(e.target.value)} placeholder="Buscar en toda la tabla..." />
+        <div className="w-20 ml-auto">
+          <Select
+            options={[10, 20, 50, 100].map(v => ({ value: v, label: String(v) }))}
+            value={pagination.pageSize}
+            onChange={v => setPagination({ pageIndex: 0, pageSize: v })}
+          />
         </div>
       </div>
       {therapies.length === 0 ? (
@@ -179,6 +189,7 @@ export function PatientDetail() {
           </table>
         </div>
       )}
+      {therapies.length > 0 && <Pagination table={therapyTable} />}
     </div>
   )
 }

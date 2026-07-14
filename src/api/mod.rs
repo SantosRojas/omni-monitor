@@ -104,6 +104,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/patients/{id}/active-device", get(patients::get_active_device))
         .route("/patients/{id}/export", get(export::export_patient))
         .route("/patients/{id}/dashboard", get(dashboard::patient_dashboard))
+        .route("/therapies/{id}", get(patients::get_therapy))
         .route("/therapies/{id}/dashboard", get(dashboard::therapy_dashboard))
         .route("/therapies/{id}/export", get(export::export_therapy))
         .route("/therapies/{id}/comments", get(comments::list_comments).post(comments::create_comment))
