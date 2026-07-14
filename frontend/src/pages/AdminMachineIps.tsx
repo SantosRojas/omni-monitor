@@ -7,12 +7,14 @@ import {
   createColumnHelper,
 } from '@tanstack/react-table'
 import type { ColumnFiltersState, SortingState } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, ExternalLink } from 'lucide-react'
 import type { MachineIpWithSerial, Machine } from '../types'
 import * as machinesApi from '../api/machines'
+import { generateToken } from '../api/auth'
 import { Modal, Badge, Select, Button, Input, Label } from '../components/ui'
 import { DataTable } from '../components/data-table'
 import { useToast } from '../contexts/ToastContext'
+import { useAuth } from '../contexts/AuthContext'
 
 const helper = createColumnHelper<MachineIpWithSerial>()
 
@@ -21,6 +23,7 @@ const hideSm = (id: string) =>
 
 export function AdminMachineIps() {
   const { showToast } = useToast()
+  const { user } = useAuth()
   const [data, setData] = useState<MachineIpWithSerial[]>([])
   const [machines, setMachines] = useState<Machine[]>([])
   const [loading, setLoading] = useState(true)
@@ -105,6 +108,17 @@ export function AdminMachineIps() {
     }
   }
 
+  const openMachineUrl = async (ip: string, port?: number) => {
+    if (!ip || !user) return
+    try {
+      const res = await generateToken(user.id)
+      const baseUrl = port ? `http://${ip}:${port}` : `http://${ip}`
+      window.open(`${baseUrl}/?token_permanente=${res.code}`, '_blank')
+    } catch {
+      showToast('Error al generar token de acceso')
+    }
+  }
+
   const columns = useMemo(() => [
     helper.accessor('serial_number', { header: 'Serial' }),
     helper.accessor('ip_address', { header: 'Dirección IP' }),
@@ -119,6 +133,9 @@ export function AdminMachineIps() {
       header: '',
       cell: ({ row }) => (
         <div className="flex gap-1">
+          <Button variant="icon" size="sm" onClick={() => openMachineUrl(row.original.ip_address, row.original.port)}>
+            <ExternalLink className="w-4 h-4" />
+          </Button>
           <Button variant="icon" size="sm" onClick={() => openEdit(row.original)}>
             <Pencil className="w-4 h-4" />
           </Button>
