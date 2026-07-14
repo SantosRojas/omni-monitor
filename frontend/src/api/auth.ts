@@ -12,3 +12,7 @@ export function getMe(): Promise<UserResponse> {
 export function logout(): Promise<void> {
   return apiPost<void>('/auth/logout')
 }
+
+export function generateToken(userId: number, expiresAt?: string | null): Promise<{ code: string }> {
+  return apiPost('/auth/generate-token', { user_id: userId, expires_at: expiresAt ?? null })
+}

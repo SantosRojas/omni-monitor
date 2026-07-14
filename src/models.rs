@@ -222,6 +222,26 @@ pub struct TherapyComment {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(FromRow))]
+pub struct AuthorizationCode {
+    pub code: String,
+    pub user_id: i64,
+    pub expires_at: Option<NaiveDateTime>,
+    pub used: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerateTokenRequest {
+    pub user_id: i64,
+    pub expires_at: Option<NaiveDateTime>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerateTokenResponse {
+    pub code: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginRequest {
     pub username: String,
     pub password: String,

@@ -33,16 +33,22 @@ pub async fn create_comment(
     Path(therapy_id): Path<i64>,
     Json(body): Json<CreateCommentRequest>,
 ) -> Result<Json<TherapyComment>, AppError> {
+    if claims.role.to_lowercase() == "viewer" {
+        return Err(AppError::Forbidden);
+    }
     let comment = state.pool.create_therapy_comment(therapy_id, &claims.full_name, &body.comment).await?;
     Ok(Json(comment))
 }
 
 pub async fn delete_comment(
     State(state): State<AppState>,
-    Extension(_claims): Extension<JwtClaims>,
+    Extension(claims): Extension<JwtClaims>,
     Path((_therapy_id, comment_id)): Path<(i64, i64)>,
     Json(body): Json<DeleteCommentRequest>,
 ) -> Result<Json<()>, AppError> {
+    if claims.role.to_lowercase() == "viewer" {
+        return Err(AppError::Forbidden);
+    }
     state.pool.delete_therapy_comment(comment_id, &body.deletion_reason).await?;
     Ok(Json(()))
 }

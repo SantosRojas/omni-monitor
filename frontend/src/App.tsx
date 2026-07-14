@@ -20,6 +20,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isLoggedIn, isAdmin } = useAuth()
+  if (!isLoggedIn) return <Navigate to="/login" replace />
+  if (!isAdmin) return <Navigate to="/patients" replace />
+  return <>{children}</>
+}
+
 function RootRedirect() {
   const { isLoggedIn } = useAuth()
   return <Navigate to={isLoggedIn ? '/patients' : '/login'} replace />
@@ -49,16 +56,16 @@ function App() {
             <Route path="/therapies/:id" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<TherapyDetail />} />
             </Route>
-            <Route path="/admin/machine-ips" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route path="/admin/machine-ips" element={<AdminRoute><Layout /></AdminRoute>}>
               <Route index element={<AdminMachineIps />} />
             </Route>
-            <Route path="/admin/users" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route path="/admin/users" element={<AdminRoute><Layout /></AdminRoute>}>
               <Route index element={<AdminUsers />} />
             </Route>
-            <Route path="/admin/equivalences" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route path="/admin/equivalences" element={<AdminRoute><Layout /></AdminRoute>}>
               <Route index element={<AdminEquivalences />} />
             </Route>
-            <Route path="/admin/signals" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route path="/admin/signals" element={<AdminRoute><Layout /></AdminRoute>}>
               <Route index element={<AdminSignals />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

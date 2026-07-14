@@ -3,8 +3,10 @@ import { MessageSquare, MessageSquarePlus, Trash2, ExternalLink } from 'lucide-r
 import type { ActiveTherapy, TherapyComment } from '../types'
 import { getActiveTherapies } from '../api/patients'
 import { createTherapyComment, deleteTherapyComment } from '../api/comments'
+import { generateToken } from '../api/auth'
 import { getConfig, type AppConfig } from '../api/config'
 import { Spinner, Button, Modal } from './ui'
+import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { formatDate } from '../utils/date'
 
@@ -19,21 +21,14 @@ function calcDuration(startedAt?: string): string {
   return `${hours}h ${minutes}m`
 }
 
-function openMachine(therapy: ActiveTherapy) {
-  if (!therapy.ip_address) return
-  const baseUrl = therapy.port
-    ? `http://${therapy.ip_address}:${therapy.port}`
-    : `http://${therapy.ip_address}`
-  window.open(`${baseUrl}/therapy/${therapy.therapy_id}`, '_blank')
-}
-
 interface CommentModalProps {
   therapy: ActiveTherapy
   open: boolean
   onClose: () => void
+  canWrite: boolean
 }
 
-function CommentModal({ therapy, open, onClose }: CommentModalProps) {
+function CommentModal({ therapy, open, onClose, canWrite }: CommentModalProps) {
   const { showToast } = useToast()
   const [comments, setComments] = useState<TherapyComment[]>(therapy.comments)
   const [newComment, setNewComment] = useState('')
@@ -81,39 +76,57 @@ function CommentModal({ therapy, open, onClose }: CommentModalProps) {
               </div>
               <p className="text-sm text-(--text-secondary) wrap-break-word">{c.comment}</p>
             </div>
-            <button
-              onClick={() => handleDelete(c.id)}
-              className="p-1 text-(--text-muted) hover:text-(--danger) cursor-pointer shrink-0"
-              title="Eliminar comentario"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            {canWrite && (
+              <button
+                onClick={() => handleDelete(c.id)}
+                className="p-1 text-(--text-muted) hover:text-(--danger) cursor-pointer shrink-0"
+                title="Eliminar comentario"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         ))}
       </div>
-      <div className="flex gap-2 items-end">
-        <textarea
-          value={newComment}
-          onChange={e => setNewComment(e.target.value)}
-          placeholder="Escribir comentario..."
-          rows={4}
-          className="flex-1 px-3 py-2 text-sm rounded-sm border border-(--glass-border) bg-(--surface-input) text-(--text-primary) outline-none focus:border-(--accent) transition-colors resize-none"
-          disabled={sending}
-        />
-        <Button variant="primary" size="sm" onClick={handleAdd} disabled={!newComment.trim() || sending}>
-          <MessageSquarePlus className="w-4 h-4" />
-        </Button>
-      </div>
+      {canWrite && (
+        <div className="flex gap-2 items-end">
+          <textarea
+            value={newComment}
+            onChange={e => setNewComment(e.target.value)}
+            placeholder="Escribir comentario..."
+            rows={4}
+            className="flex-1 px-3 py-2 text-sm rounded-sm border border-(--glass-border) bg-(--surface-input) text-(--text-primary) outline-none focus:border-(--accent) transition-colors resize-none"
+            disabled={sending}
+          />
+          <Button variant="primary" size="sm" onClick={handleAdd} disabled={!newComment.trim() || sending}>
+            <MessageSquarePlus className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
     </Modal>
   )
 }
 
 export function ActiveTherapiesTable() {
   const { showToast } = useToast()
+  const { user } = useAuth()
   const [therapies, setTherapies] = useState<ActiveTherapy[]>([])
   const [loading, setLoading] = useState(true)
   const [config, setConfig] = useState<AppConfig>({ polling_interval_ms: 15000 })
   const [commentTarget, setCommentTarget] = useState<ActiveTherapy | null>(null)
+
+  const openMachine = useCallback(async (therapy: ActiveTherapy) => {
+    if (!therapy.ip_address || !user) return
+    try {
+      const res = await generateToken(user.id)
+      const baseUrl = therapy.port
+        ? `http://${therapy.ip_address}:${therapy.port}`
+        : `http://${therapy.ip_address}`
+      window.open(`${baseUrl}/therapy/${therapy.therapy_id}?token_permanente=${res.code}`, '_blank')
+    } catch {
+      showToast('Error al generar token de acceso')
+    }
+  }, [user, showToast])
 
   const fetchData = useCallback(async () => {
     try {
@@ -224,6 +237,7 @@ export function ActiveTherapiesTable() {
           therapy={commentTarget}
           open={!!commentTarget}
           onClose={() => setCommentTarget(null)}
+          canWrite={user?.role !== 'viewer'}
         />
       )}
     </>

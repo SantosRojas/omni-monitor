@@ -9,6 +9,27 @@ use crate::auth::{self as auth_utils, JwtClaims};
 use crate::models::*;
 use super::{AppError, AppState};
 
+pub async fn generate_authorization_code(
+    State(state): State<AppState>,
+    Extension(claims): Extension<JwtClaims>,
+    Json(req): Json<GenerateTokenRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    state.pool
+        .find_user_by_id(claims.user_id)
+        .await
+        .map_err(|e| AppError::Database(format!("find_user_by_id: {}", e)))?
+        .ok_or(AppError::NotFound)?;
+
+    let code = uuid::Uuid::new_v4().to_string();
+
+    state.pool
+        .create_authorization_code(&code, req.user_id, req.expires_at)
+        .await
+        .map_err(|e| AppError::Database(format!("create_authorization_code: {}", e)))?;
+
+    Ok(Json(GenerateTokenResponse { code }))
+}
+
 pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,

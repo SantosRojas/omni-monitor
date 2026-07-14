@@ -14,7 +14,7 @@ const navItems = [
 ]
 
 const adminNavItems = [
-  { to: '/admin/machine-ips', label: 'IPs de Máquinas', icon: HardDrive },
+  { to: '/admin/machine-ips', label: 'IPs de Máquinas', icon: HardDrive, adminOnly: true },
   { to: '/admin/users', label: 'Usuarios', icon: UserCog, adminOnly: true },
   { to: '/admin/equivalences', label: 'Equivalencias', icon: GitCompare, adminOnly: true },
   { to: '/admin/signals', label: 'Señales', icon: Zap, adminOnly: true },

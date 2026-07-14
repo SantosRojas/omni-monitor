@@ -115,6 +115,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/admin/equivalences/{signal_id}/{numeric_value}", delete(equivalences::delete))
         .route("/admin/signals", get(signals::list))
         .route("/admin/signals/{id}", put(signals::update))
+        .route("/auth/generate-token", post(auth::generate_authorization_code))
         .route("/users", get(users::list).post(users::create))
         .route("/users/{id}", put(users::update).delete(users::delete_user))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))

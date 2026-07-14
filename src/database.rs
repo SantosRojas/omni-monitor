@@ -296,6 +296,17 @@ impl TryFromRow for TherapyComment {
     }
 }
 
+impl TryFromRow for AuthorizationCode {
+    fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            code: col_str(row, "code")?,
+            user_id: col_i64(row, "user_id")?,
+            expires_at: col_opt_dt(row, "expires_at")?,
+            used: col_bool(row, "used").unwrap_or(false),
+        })
+    }
+}
+
 impl TryFromRow for TherapyRaw {
     fn try_from_row(row: &Row) -> Result<Self, sqlx::Error> {
         Ok(Self {
@@ -503,6 +514,15 @@ impl DbPool {
                     )",
                 )
                 .execute(&pool).await?;
+                sqlx::query(
+                    "CREATE TABLE IF NOT EXISTS authorization_codes (
+                        code TEXT PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        expires_at DATETIME,
+                        used INTEGER NOT NULL DEFAULT 0
+                    )",
+                )
+                .execute(&pool).await?;
                 Ok(Self::Sqlite(pool))
             }
             "postgres" | "pgsql" | "postgresql" => {
@@ -620,6 +640,15 @@ impl DbPool {
                         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                         deleted_at TIMESTAMPTZ,
                         deletion_reason TEXT
+                    )",
+                )
+                .execute(&pool).await?;
+                sqlx::query(
+                    "CREATE TABLE IF NOT EXISTS authorization_codes (
+                        code TEXT PRIMARY KEY,
+                        user_id BIGINT NOT NULL,
+                        expires_at TIMESTAMPTZ,
+                        used BOOLEAN NOT NULL DEFAULT FALSE
                     )",
                 )
                 .execute(&pool).await?;
@@ -741,6 +770,15 @@ impl DbPool {
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         deleted_at DATETIME,
                         deletion_reason TEXT
+                    )",
+                )
+                .execute(&pool).await?;
+                sqlx::query(
+                    "CREATE TABLE IF NOT EXISTS authorization_codes (
+                        code VARCHAR(255) PRIMARY KEY,
+                        user_id BIGINT NOT NULL,
+                        expires_at DATETIME,
+                        used TINYINT(1) NOT NULL DEFAULT 0
                     )",
                 )
                 .execute(&pool).await?;
@@ -883,6 +921,15 @@ impl DbPool {
                             created_at DATETIME2 DEFAULT CURRENT_TIMESTAMP,
                             deleted_at DATETIME2,
                             deletion_reason NVARCHAR(MAX)
+                        )",
+                ).await?;
+                mssql.simple_query(
+                    "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'authorization_codes')
+                        CREATE TABLE authorization_codes (
+                            code NVARCHAR(255) PRIMARY KEY,
+                            user_id BIGINT NOT NULL,
+                            expires_at DATETIME2,
+                            used BIT NOT NULL DEFAULT 0
                         )",
                 ).await?;
                 Ok(Self::Mssql(mssql))
@@ -2143,6 +2190,45 @@ impl DbPool {
             }
         }
         Ok(())
+    }
+
+    // --- Authorization Codes ---
+    pub async fn create_authorization_code(&self, code: &str, user_id: i64, expires_at: Option<NaiveDateTime>) -> Result<(), sqlx::Error> {
+        match self {
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => {
+                sqlx::query("INSERT INTO authorization_codes (code, user_id, expires_at, used) VALUES (?, ?, ?, 0)")
+                    .bind(code).bind(user_id).bind(expires_at).execute(p).await?;
+                Ok(())
+            }
+            Self::Postgres(p) => {
+                sqlx::query("INSERT INTO authorization_codes (code, user_id, expires_at, used) VALUES ($1, $2, $3, FALSE)")
+                    .bind(code).bind(user_id).bind(expires_at).execute(p).await?;
+                Ok(())
+            }
+            Self::Mysql(p) => {
+                sqlx::query("INSERT INTO authorization_codes (code, user_id, expires_at, used) VALUES (?, ?, ?, 0)")
+                    .bind(code).bind(user_id).bind(expires_at).execute(p).await?;
+                Ok(())
+            }
+            Self::Mssql(db) => {
+                db.execute(
+                    "INSERT INTO authorization_codes (code, user_id, expires_at, used) VALUES (@P1, @P2, @P3, 0)",
+                    tp!(code, user_id, expires_at)
+                ).await?;
+                Ok(())
+            }
+        }
+    }
+
+    pub async fn find_authorization_code(&self, code: &str) -> Result<Option<AuthorizationCode>, sqlx::Error> {
+        match self {
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => sqlx::query_as("SELECT * FROM authorization_codes WHERE code = ?").bind(code).fetch_optional(p).await,
+            Self::Postgres(p) => sqlx::query_as("SELECT * FROM authorization_codes WHERE code = $1").bind(code).fetch_optional(p).await,
+            Self::Mysql(p) => sqlx::query_as("SELECT * FROM authorization_codes WHERE code = ?").bind(code).fetch_optional(p).await,
+            Self::Mssql(db) => db.query_one::<AuthorizationCode>("SELECT * FROM authorization_codes WHERE code = @P1", tp!(code)).await,
+        }
     }
 }
 

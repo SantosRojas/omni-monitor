@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 const links = [
   { to: '/patients', label: 'Pacientes', icon: Users },
-  { to: '/admin/machine-ips', label: 'IPs', icon: HardDrive },
+  { to: '/admin/machine-ips', label: 'IPs', icon: HardDrive, adminOnly: true },
   { to: '/admin/users', label: 'Usuarios', icon: UserCog, adminOnly: true },
   { to: '/admin/equivalences', label: 'Equivalencias', icon: GitCompare, adminOnly: true },
   { to: '/admin/signals', label: 'Señales', icon: Zap, adminOnly: true },
