@@ -126,17 +126,7 @@ fn col_bool<'a>(row: &'a Row, name: &str) -> Result<bool, sqlx::Error> {
     }
 }
 
-#[allow(dead_code)]
-fn col_opt_bool<'a>(row: &'a Row, name: &str) -> Result<Option<bool>, sqlx::Error> {
-    match row.try_get::<i32, &str>(name) {
-        Ok(Some(v)) => Ok(Some(v != 0)),
-        Ok(None) => Ok(None),
-        Err(_) => match row.try_get::<bool, &str>(name) {
-            Ok(v) => Ok(v),
-            Err(e) => Err(sqlx::Error::Protocol(format!("column '{}': {}", name, e))),
-        },
-    }
-}
+
 
 fn col_opt_dt<'a>(row: &'a Row, name: &str) -> Result<Option<NaiveDateTime>, sqlx::Error> {
     match row.try_get::<NaiveDateTime, &str>(name) {
@@ -1247,54 +1237,6 @@ impl DbPool {
         Ok(PaginatedResponse { total: count_total, page, per_page, total_pages: (count_total as f64 / per_page as f64).ceil() as i64, data: therapies })
     }
 
-    pub async fn list_therapies_by_patient(&self, patient_id: i64) -> Result<Vec<TherapyWithMachine>, sqlx::Error> {
-        let raw: Vec<TherapyRaw> = match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-            Self::Sqlite(p) => {
-                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final , p.patient_id_str FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id LEFT JOIN patients p ON t.patient_id = p.id WHERE t.patient_id = ? ORDER BY t.started_at DESC")
-                    .bind(patient_id).fetch_all(p).await?
-            }
-            Self::Postgres(p) => {
-                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final , p.patient_id_str FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id LEFT JOIN patients p ON t.patient_id = p.id WHERE t.patient_id = $1 ORDER BY t.started_at DESC")
-                    .bind(patient_id).fetch_all(p).await?
-            }
-            Self::Mysql(p) => {
-                sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final , p.patient_id_str FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id LEFT JOIN patients p ON t.patient_id = p.id WHERE t.patient_id = ? ORDER BY t.started_at DESC")
-                    .bind(patient_id).fetch_all(p).await?
-            }
-            Self::Mssql(db) => db.query_all::<TherapyRaw>(
-                "SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT TOP 1 mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id) as ip_address, (SELECT TOP 1 mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id) as port, (SELECT TOP 1 s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC) as therapy_type_signal_id, (SELECT TOP 1 te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC) as therapy_type, (SELECT TOP 1 s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC) as kit_signal_id, (SELECT TOP 1 te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC) as kit, (SELECT TOP 1 s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC) as weight_initial_signal_id, (SELECT TOP 1 te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC) as weight_initial, (SELECT TOP 1 s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC) as weight_final_signal_id, (SELECT TOP 1 te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC) as weight_final , p.patient_id_str FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id LEFT JOIN patients p ON t.patient_id = p.id WHERE t.patient_id = @P1 ORDER BY t.started_at DESC",
-                tp!(patient_id)
-            ).await?,
-        };
-        let equivalences = self.load_equivalences().await.unwrap_or_default();
-        let therapies: Vec<TherapyWithMachine> = raw.into_iter().map(|r| {
-            let mut t = TherapyWithMachine::from(r.clone());
-            if let (Some(sig_id), Some(ref val)) = (r.therapy_type_signal_id, t.therapy_type.clone()) {
-                if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
-                    t.therapy_type = Some(display.to_string());
-                }
-            }
-            if let (Some(sig_id), Some(ref val)) = (r.kit_signal_id, t.kit.clone()) {
-                if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
-                    t.kit = Some(display.to_string());
-                }
-            }
-            if let (Some(sig_id), Some(ref val)) = (r.weight_initial_signal_id, t.weight_initial.clone()) {
-                if let Some(display) = lookup_equivalence(sig_id, val, &equivalences) {
-                    t.weight_initial = Some(display.to_string());
-                }
-            }
-            if let (Some(sig_id), Some(ref val)) = (r.weight_final_signal_id, t.weight_final.clone()) {
-                if let Some(display) = lookup_equivalence(sig_id, val, &equivalences) {
-                    t.weight_final = Some(display.to_string());
-                }
-            }
-            t
-        }).collect();
-        Ok(therapies)
-    }
-
     pub async fn find_therapy_by_id(&self, therapy_id: i64) -> Result<Option<TherapyWithMachine>, sqlx::Error> {
         let raw: Option<TherapyRaw> = match self {
             Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
@@ -2269,6 +2211,60 @@ impl DbPool {
         }
     }
 
+    pub async fn find_machine_by_serial(&self, serial: &str) -> Result<Option<Machine>, sqlx::Error> {
+        match self {
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE serial_number = ?")
+                .bind(serial).fetch_optional(p).await,
+            Self::Postgres(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE serial_number = $1")
+                .bind(serial).fetch_optional(p).await,
+            Self::Mysql(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE serial_number = ?")
+                .bind(serial).fetch_optional(p).await,
+            Self::Mssql(db) => db.query_one::<Machine>("SELECT * FROM machines WHERE serial_number = @P1", tp!(serial)).await,
+        }
+    }
+
+    pub async fn find_machine_by_id(&self, id: i64) -> Result<Option<Machine>, sqlx::Error> {
+        match self {
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE id = ?")
+                .bind(id).fetch_optional(p).await,
+            Self::Postgres(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE id = $1")
+                .bind(id).fetch_optional(p).await,
+            Self::Mysql(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE id = ?")
+                .bind(id).fetch_optional(p).await,
+            Self::Mssql(db) => db.query_one::<Machine>("SELECT * FROM machines WHERE id = @P1", tp!(id)).await,
+        }
+    }
+
+    pub async fn create_machine(&self, serial: &str) -> Result<Machine, sqlx::Error> {
+        match self {
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => {
+                sqlx::query("INSERT INTO machines (serial_number, software_version) VALUES (?, '')")
+                    .bind(serial).execute(p).await?;
+                sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE serial_number = ?")
+                    .bind(serial).fetch_one(p).await
+            }
+            Self::Postgres(p) => {
+                sqlx::query_as::<_, Machine>("INSERT INTO machines (serial_number, software_version) VALUES ($1, '') RETURNING *")
+                    .bind(serial).fetch_one(p).await
+            }
+            Self::Mysql(p) => {
+                sqlx::query("INSERT INTO machines (serial_number, software_version) VALUES (?, '')")
+                    .bind(serial).execute(p).await?;
+                let id: (i64,) = sqlx::query_as("SELECT LAST_INSERT_ID()").fetch_one(p).await?;
+                self.find_machine_by_id(id.0).await?.ok_or_else(|| sqlx::Error::Configuration("Created machine not found after insert".into()))
+            }
+            Self::Mssql(db) => {
+                db.query_one::<Machine>(
+                    "INSERT INTO machines (serial_number, software_version) OUTPUT INSERTED.* VALUES (@P1, '')",
+                    tp!(serial)
+                ).await?.ok_or_else(|| sqlx::Error::Protocol("INSERT OUTPUT returned no rows".into()))
+            }
+        }
+    }
+
     pub async fn seed_admin(&self, password: &str) -> Result<(), sqlx::Error> {
         let count = self.count_users().await?;
         if count == 0 {
@@ -2325,15 +2321,6 @@ impl DbPool {
         }
     }
 
-    pub async fn find_authorization_code(&self, code: &str) -> Result<Option<AuthorizationCode>, sqlx::Error> {
-        match self {
-            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
-            Self::Sqlite(p) => sqlx::query_as("SELECT * FROM authorization_codes WHERE code = ?").bind(code).fetch_optional(p).await,
-            Self::Postgres(p) => sqlx::query_as("SELECT * FROM authorization_codes WHERE code = $1").bind(code).fetch_optional(p).await,
-            Self::Mysql(p) => sqlx::query_as("SELECT * FROM authorization_codes WHERE code = ?").bind(code).fetch_optional(p).await,
-            Self::Mssql(db) => db.query_one::<AuthorizationCode>("SELECT * FROM authorization_codes WHERE code = @P1", tp!(code)).await,
-        }
-    }
 }
 
 // Raw structs for JOIN queries

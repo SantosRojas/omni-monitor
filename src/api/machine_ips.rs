@@ -21,10 +21,19 @@ pub async fn list(
 pub async fn create(
     State(state): State<AppState>,
     Extension(claims): Extension<JwtClaims>,
-    Json(req): Json<CreateMachineIpRequest>,
+    Json(mut req): Json<CreateMachineIpRequest>,
 ) -> Result<Json<MachineIp>, AppError> {
     if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
+    }
+    if req.machine_id == 0 {
+        if let Some(ref serial) = req.serial_number {
+            let machine = state.pool.find_machine_by_serial(serial).await?;
+            req.machine_id = match machine {
+                Some(m) => m.id,
+                None => state.pool.create_machine(serial).await?.id,
+            };
+        }
     }
     let item = state.pool.create_machine_ip(&req).await?;
     Ok(Json(item))

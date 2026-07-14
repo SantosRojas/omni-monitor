@@ -1,9 +1,5 @@
 import type { TherapyComment } from '../types'
-import { apiGet, apiPost, apiDelete } from './client'
-
-export function getTherapyComments(therapyId: number): Promise<TherapyComment[]> {
-  return apiGet<TherapyComment[]>(`/therapies/${therapyId}/comments`)
-}
+import { apiPost, apiDelete } from './client'
 
 export function createTherapyComment(therapyId: number, comment: string): Promise<TherapyComment> {
   return apiPost<TherapyComment>(`/therapies/${therapyId}/comments`, { comment })

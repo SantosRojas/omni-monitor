@@ -11,7 +11,7 @@ import { Plus, Pencil, Trash2, ExternalLink } from 'lucide-react'
 import type { MachineIpWithSerial, Machine } from '../types'
 import * as machinesApi from '../api/machines'
 import { generateToken } from '../api/auth'
-import { Modal, Badge, Select, Button, Input, Label } from '../components/ui'
+import { Modal, Badge, Combobox, Button, Input, Label } from '../components/ui'
 import { DataTable } from '../components/data-table'
 import { useToast } from '../contexts/ToastContext'
 import { useAuth } from '../contexts/AuthContext'
@@ -31,6 +31,7 @@ export function AdminMachineIps() {
   const [editing, setEditing] = useState<MachineIpWithSerial | null>(null)
 
   const [formMachineId, setFormMachineId] = useState(0)
+  const [formSerialNumber, setFormSerialNumber] = useState('')
   const [formIp, setFormIp] = useState('')
   const [formPort, setFormPort] = useState<number | undefined>(undefined)
   const [formLabel, setFormLabel] = useState('')
@@ -55,7 +56,8 @@ export function AdminMachineIps() {
 
   const openCreate = () => {
     setEditing(null)
-    setFormMachineId(machines[0]?.id || 0)
+    setFormMachineId(0)
+    setFormSerialNumber('')
     setFormIp('')
     setFormPort(undefined)
     setFormLabel('')
@@ -85,6 +87,7 @@ export function AdminMachineIps() {
       } else {
         await machinesApi.createMachineIp({
           machine_id: formMachineId,
+          serial_number: formMachineId === 0 ? formSerialNumber : undefined,
           ip_address: formIp,
           port: formPort,
           label: formLabel,
@@ -183,11 +186,15 @@ export function AdminMachineIps() {
           {!editing && (
             <div>
               <Label>Máquina</Label>
-              <Select
+              <Combobox
                 options={machines.map(m => ({ value: m.id, label: m.serial_number }))}
                 value={formMachineId}
-                onChange={setFormMachineId}
-                placeholder="Seleccionar máquina…"
+                onChange={(id, label) => {
+                  setFormMachineId(id)
+                  if (id === 0) setFormSerialNumber(label)
+                  else setFormSerialNumber('')
+                }}
+                placeholder="Buscar o escribir serial…"
               />
             </div>
           )}

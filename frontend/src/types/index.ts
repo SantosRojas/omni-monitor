@@ -1,13 +1,3 @@
-export interface User {
-  id: number
-  username: string
-  full_name: string
-  email: string
-  role: string
-  active: boolean
-  created_at?: string
-}
-
 export interface UserResponse {
   id: number
   username: string
@@ -33,15 +23,6 @@ export interface Machine {
   software_version: string
   registered_at?: string
   status?: string
-}
-
-export interface Therapy {
-  id: number
-  started_at?: string
-  patient_id?: number
-  machine_id?: number
-  status?: string
-  ended_at?: string
 }
 
 export interface TherapyWithMachine {
@@ -136,17 +117,13 @@ export interface TherapyComment {
   deletion_reason?: string
 }
 
-export interface LoginRequest {
-  username: string
-  password: string
-}
-
 export interface LoginResponse {
   user: UserResponse
 }
 
 export interface CreateMachineIpRequest {
   machine_id: number
+  serial_number?: string
   ip_address: string
   port?: number
   label?: string
@@ -182,13 +159,6 @@ export interface PaginatedResponse<T> {
   page: number
   per_page: number
   total_pages: number
-}
-
-export interface ActiveDevice {
-  ip_address: string
-  port?: number
-  url: string
-  serial_number: string
 }
 
 export interface DashboardSignal {

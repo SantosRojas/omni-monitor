@@ -1,1 +1,0 @@
-export { PatientComponent } from './patient'

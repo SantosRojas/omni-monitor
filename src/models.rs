@@ -80,17 +80,6 @@ pub struct Machine {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "ssr", derive(FromRow))]
-pub struct Therapy {
-    pub id: i64,
-    pub started_at: Option<NaiveDateTime>,
-    pub patient_id: Option<i64>,
-    pub machine_id: Option<i64>,
-    pub status: Option<String>,
-    pub ended_at: Option<NaiveDateTime>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TherapyWithMachine {
     pub id: i64,
     pub started_at: Option<NaiveDateTime>,
@@ -169,11 +158,6 @@ pub struct UpdateEquivalenceRequest {
 pub struct UpdateSignalRequest {
     pub display_name: Option<String>,
     pub unit: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeleteEquivalenceBody {
-    pub deletion_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -256,6 +240,7 @@ pub struct LoginResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateMachineIpRequest {
     pub machine_id: i64,
+    pub serial_number: Option<String>,
     pub ip_address: String,
     pub port: Option<i32>,
     pub label: Option<String>,

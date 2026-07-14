@@ -1,4 +1,4 @@
-import type { ActiveDevice, ActiveTherapy, PaginatedResponse, Patient, PatientDashboard, TelemetryReading, TherapyWithMachine } from '../types'
+import type { ActiveTherapy, PaginatedResponse, Patient, PatientDashboard, TelemetryReading, TherapyWithMachine } from '../types'
 import { apiGet } from './client'
 
 export function listPatients(page = 1, perPage = 20, search?: string): Promise<PaginatedResponse<Patient>> {
@@ -17,10 +17,6 @@ export function getTherapies(patientId: number, page = 1, perPage = 20): Promise
 
 export function getHistory(patientId: number, page = 1, perPage = 50): Promise<PaginatedResponse<TelemetryReading>> {
   return apiGet<PaginatedResponse<TelemetryReading>>(`/patients/${patientId}/history?page=${page}&per_page=${perPage}`)
-}
-
-export function getActiveDevice(patientId: number): Promise<ActiveDevice> {
-  return apiGet<ActiveDevice>(`/patients/${patientId}/active-device`)
 }
 
 export function getPatientDashboard(patientId: number, signalIds?: string, from?: string, to?: string): Promise<PatientDashboard> {
