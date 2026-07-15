@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "ssr")]
@@ -14,7 +14,7 @@ pub struct User {
     pub email: String,
     pub role: String,
     pub active: bool,
-    pub created_at: Option<NaiveDateTime>,
+    pub created_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,9 +45,9 @@ impl From<User> for UserResponse {
 pub struct Patient {
     pub id: i64,
     pub patient_id_str: String,
-    pub created_at: Option<NaiveDateTime>,
-    pub therapy_start: Option<NaiveDateTime>,
-    pub therapy_end: Option<NaiveDateTime>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub therapy_start: Option<DateTime<Utc>>,
+    pub therapy_end: Option<DateTime<Utc>>,
     pub active_therapy_count: Option<i64>,
     pub completed_therapy_count: Option<i64>,
 }
@@ -57,7 +57,7 @@ pub struct ActiveTherapy {
     pub therapy_id: i64,
     pub patient_id: i64,
     pub patient_id_str: String,
-    pub started_at: Option<NaiveDateTime>,
+    pub started_at: Option<DateTime<Utc>>,
     pub serial_number: Option<String>,
     pub ip_address: Option<String>,
     pub port: Option<i32>,
@@ -75,15 +75,15 @@ pub struct Machine {
     pub id: i64,
     pub serial_number: String,
     pub software_version: String,
-    pub registered_at: Option<NaiveDateTime>,
+    pub registered_at: Option<DateTime<Utc>>,
     pub status: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TherapyWithMachine {
     pub id: i64,
-    pub started_at: Option<NaiveDateTime>,
-    pub ended_at: Option<NaiveDateTime>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub ended_at: Option<DateTime<Utc>>,
     pub status: Option<String>,
     pub machine_id: Option<i64>,
     pub serial_number: Option<String>,
@@ -106,8 +106,8 @@ pub struct MachineIp {
     pub port: Option<i32>,
     pub label: Option<String>,
     pub is_active: bool,
-    pub created_at: Option<NaiveDateTime>,
-    pub updated_at: Option<NaiveDateTime>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,8 +118,8 @@ pub struct MachineIpWithSerial {
     pub port: Option<i32>,
     pub label: Option<String>,
     pub is_active: bool,
-    pub created_at: Option<NaiveDateTime>,
-    pub updated_at: Option<NaiveDateTime>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
     pub serial_number: Option<String>,
 }
 
@@ -164,7 +164,7 @@ pub struct UpdateSignalRequest {
 #[cfg_attr(feature = "ssr", derive(FromRow))]
 pub struct TelemetryReading {
     pub id: i64,
-    pub timestamp: Option<NaiveDateTime>,
+    pub timestamp: Option<DateTime<Utc>>,
     pub therapy_id: Option<i64>,
     pub signal_id: Option<i64>,
     pub raw_value: Option<i64>,
@@ -178,7 +178,7 @@ pub struct TelemetryReading {
 #[cfg_attr(feature = "ssr", derive(FromRow))]
 pub struct TelemetryExportRow {
     pub id: i64,
-    pub timestamp: Option<NaiveDateTime>,
+    pub timestamp: Option<DateTime<Utc>>,
     pub signal_id: Option<i64>,
     pub physical_value: Option<String>,
     pub unit: Option<String>,
@@ -201,8 +201,8 @@ pub struct TherapyComment {
     pub therapy_id: i64,
     pub author_name: String,
     pub comment: String,
-    pub created_at: Option<NaiveDateTime>,
-    pub deleted_at: Option<NaiveDateTime>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub deleted_at: Option<DateTime<Utc>>,
     pub deletion_reason: Option<String>,
 }
 
@@ -211,14 +211,14 @@ pub struct TherapyComment {
 pub struct AuthorizationCode {
     pub code: String,
     pub user_id: i64,
-    pub expires_at: Option<NaiveDateTime>,
+    pub expires_at: Option<DateTime<Utc>>,
     pub used: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenerateTokenRequest {
     pub user_id: i64,
-    pub expires_at: Option<NaiveDateTime>,
+    pub expires_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -304,7 +304,7 @@ pub struct DashboardSignal {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DashboardValue {
-    pub timestamp: NaiveDateTime,
+    pub timestamp: DateTime<Utc>,
     pub value: f64,
 }
 

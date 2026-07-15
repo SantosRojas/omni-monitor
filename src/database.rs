@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::str::FromStr;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use sqlx::{
     mysql::{MySqlConnectOptions, MySqlPoolOptions},
     postgres::{PgConnectOptions, PgPoolOptions},
@@ -128,8 +128,8 @@ fn col_bool<'a>(row: &'a Row, name: &str) -> Result<bool, sqlx::Error> {
 
 
 
-fn col_opt_dt<'a>(row: &'a Row, name: &str) -> Result<Option<NaiveDateTime>, sqlx::Error> {
-    match row.try_get::<NaiveDateTime, &str>(name) {
+fn col_opt_dt<'a>(row: &'a Row, name: &str) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
+    match row.try_get::<DateTime<Utc>, &str>(name) {
         Ok(v) => Ok(v),
         Err(e) => Err(sqlx::Error::Protocol(format!("column '{}': {}", name, e))),
     }
@@ -166,7 +166,7 @@ impl TryFromRow for User {
             email: col_str(row, "email")?,
             role: col_str(row, "role")?,
             active: col_bool(row, "active").unwrap_or(false),
-            created_at: col_opt::<NaiveDateTime>(row, "created_at")?,
+            created_at: col_opt::<DateTime<Utc>>(row, "created_at")?,
         })
     }
 }
@@ -176,9 +176,9 @@ impl TryFromRow for Patient {
         Ok(Self {
             id: col_i64(row, "id")?,
             patient_id_str: col_str(row, "patient_id_str")?,
-            created_at: col_opt::<NaiveDateTime>(row, "created_at")?,
-            therapy_start: col_opt::<NaiveDateTime>(row, "therapy_start")?,
-            therapy_end: col_opt::<NaiveDateTime>(row, "therapy_end")?,
+            created_at: col_opt::<DateTime<Utc>>(row, "created_at")?,
+            therapy_start: col_opt::<DateTime<Utc>>(row, "therapy_start")?,
+            therapy_end: col_opt::<DateTime<Utc>>(row, "therapy_end")?,
             active_therapy_count: col_opt_i64(row, "active_therapy_count")?,
             completed_therapy_count: col_opt_i64(row, "completed_therapy_count")?,
         })
@@ -2293,7 +2293,7 @@ impl DbPool {
     }
 
     // --- Authorization Codes ---
-    pub async fn create_authorization_code(&self, code: &str, user_id: i64, expires_at: Option<NaiveDateTime>) -> Result<(), sqlx::Error> {
+    pub async fn create_authorization_code(&self, code: &str, user_id: i64, expires_at: Option<DateTime<Utc>>) -> Result<(), sqlx::Error> {
         match self {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
             Self::Sqlite(p) => {
@@ -2327,12 +2327,12 @@ impl DbPool {
 #[derive(Debug, Clone, sqlx::FromRow)]
 struct TherapyRaw {
     pub id: i64,
-    pub started_at: Option<NaiveDateTime>,
+    pub started_at: Option<DateTime<Utc>>,
     #[allow(dead_code)]
     pub patient_id: Option<i64>,
     pub machine_id: Option<i64>,
     pub status: Option<String>,
-    pub ended_at: Option<NaiveDateTime>,
+    pub ended_at: Option<DateTime<Utc>>,
     pub serial_number: Option<String>,
     pub software_version: Option<String>,
     pub ip_address: Option<String>,
@@ -2359,7 +2359,7 @@ struct ActiveTherapyRaw {
     pub therapy_id: i64,
     pub patient_id: i64,
     pub patient_id_str: String,
-    pub started_at: Option<NaiveDateTime>,
+    pub started_at: Option<DateTime<Utc>>,
     pub serial_number: Option<String>,
     pub ip_address: Option<String>,
     pub port: Option<i32>,
@@ -2401,8 +2401,8 @@ struct MachineIpWithSerialRaw {
     pub port: Option<i32>,
     pub label: Option<String>,
     pub is_active: bool,
-    pub created_at: Option<NaiveDateTime>,
-    pub updated_at: Option<NaiveDateTime>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
     pub serial_number: Option<String>,
 }
 
@@ -2444,6 +2444,6 @@ struct DashboardSignalRaw {
 #[derive(Debug, Clone, sqlx::FromRow)]
 struct DashboardValueWithSignal {
     pub signal_id: i64,
-    pub timestamp: Option<NaiveDateTime>,
+    pub timestamp: Option<DateTime<Utc>>,
     pub physical_value: Option<String>,
 }
