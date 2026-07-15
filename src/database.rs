@@ -537,7 +537,7 @@ impl DbPool {
                         email TEXT NOT NULL,
                         role TEXT NOT NULL,
                         active BOOLEAN NOT NULL DEFAULT TRUE,
-                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )",
                 ).execute(&pool).await?;
                 sqlx::query(
@@ -545,7 +545,7 @@ impl DbPool {
                         id BIGSERIAL PRIMARY KEY,
                         serial_number TEXT NOT NULL,
                         software_version TEXT NOT NULL,
-                        registered_at TIMESTAMPTZ,
+                        registered_at TIMESTAMP,
                         status TEXT
                     )",
                 ).execute(&pool).await?;
@@ -569,23 +569,23 @@ impl DbPool {
                     "CREATE TABLE IF NOT EXISTS patients (
                         id BIGSERIAL PRIMARY KEY,
                         patient_id_str TEXT NOT NULL,
-                        created_at TIMESTAMPTZ
+                        created_at TIMESTAMP
                     )",
                 ).execute(&pool).await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS therapies (
                         id BIGSERIAL PRIMARY KEY,
-                        started_at TIMESTAMPTZ,
+                        started_at TIMESTAMP,
                         patient_id BIGINT,
                         machine_id BIGINT,
                         status TEXT,
-                        ended_at TIMESTAMPTZ
+                        ended_at TIMESTAMP
                     )",
                 ).execute(&pool).await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS telemetry (
                         id BIGSERIAL PRIMARY KEY,
-                        timestamp TIMESTAMPTZ,
+                        timestamp TIMESTAMP,
                         therapy_id BIGINT,
                         signal_id BIGINT,
                         raw_value BIGINT,
@@ -601,8 +601,8 @@ impl DbPool {
                         port INTEGER DEFAULT NULL,
                         label TEXT,
                         is_active BOOLEAN DEFAULT TRUE,
-                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )",
                 )
                 .execute(&pool)
@@ -618,7 +618,7 @@ impl DbPool {
                         numeric_value DOUBLE PRECISION NOT NULL,
                         deleted_by TEXT NOT NULL,
                         deletion_reason TEXT NOT NULL,
-                        deleted_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                        deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )",
                 )
                 .execute(&pool).await?;
@@ -628,8 +628,8 @@ impl DbPool {
                         therapy_id BIGINT NOT NULL,
                         author_name TEXT NOT NULL,
                         comment TEXT NOT NULL,
-                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                        deleted_at TIMESTAMPTZ,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        deleted_at TIMESTAMP,
                         deletion_reason TEXT
                     )",
                 )
@@ -638,7 +638,7 @@ impl DbPool {
                     "CREATE TABLE IF NOT EXISTS authorization_codes (
                         code TEXT PRIMARY KEY,
                         user_id BIGINT NOT NULL,
-                        expires_at TIMESTAMPTZ,
+                        expires_at TIMESTAMP,
                         used BOOLEAN NOT NULL DEFAULT FALSE
                     )",
                 )
