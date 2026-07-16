@@ -4,6 +4,7 @@ use axum::{
     response::{IntoResponse, Response},
     Extension,
 };
+use chrono::FixedOffset;
 use rust_xlsxwriter::*;
 
 use crate::models::*;
@@ -53,7 +54,7 @@ fn build_excel(data: &[TelemetryExportRow], equivalences: &[AttributeEquivalence
             r,
             1,
             row.timestamp
-                .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
+                .map(|t| t.with_timezone(&FixedOffset::west_opt(5 * 3600).unwrap()).format("%Y-%m-%d %H:%M:%S").to_string())
                 .unwrap_or_default(),
         ).map_err(|e| e.to_string())?;
         if let Some(ref name) = row.signal_name {
