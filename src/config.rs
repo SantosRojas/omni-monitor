@@ -63,7 +63,13 @@ impl MonitorConfig {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(24),
             jwt_issuer: env::var("JWT_ISSUER").unwrap_or_else(|_| "monitor".into()),
-            admin_password: env::var("ADMIN_PASSWORD").unwrap_or_else(|_| "admin123".into()),
+            admin_password: {
+                let pw = env::var("ADMIN_PASSWORD").unwrap_or_else(|_| "admin123".into());
+                if pw == "admin123" {
+                    tracing::warn!("ADMIN_PASSWORD is set to default value 'admin123' — this is INSECURE for production");
+                }
+                pw
+            },
             cors_origins,
             polling_interval_ms: env::var("POLLING_INTERVAL_MS")
                 .ok()

@@ -1043,7 +1043,7 @@ impl DbPool {
                 if let Some(ref v) = req.full_name { q = q.bind(v.as_str()); }
                 if let Some(ref v) = req.email { q = q.bind(v.as_str()); }
                 if let Some(ref v) = req.role { q = q.bind(v.as_str()); }
-                if let Some(v) = req.active { q = q.bind(if v { 1i32 } else { 0i32 }); }
+                if let Some(v) = req.active { q = q.bind(v); }
                 q.bind(id).execute(p).await?;
             }
             Self::Mysql(p) => { build_update!(p, "?"); }
@@ -1390,14 +1390,12 @@ impl DbPool {
                 for &id in therapy_ids { q = q.bind(id); }
                 q.fetch_all(p).await
             }
-            Self::Mssql(_db) => {
-                let mut all = Vec::new();
-                for &tid in therapy_ids {
-                    if let Ok(mut comments) = self.list_therapy_comments(tid).await {
-                        all.append(&mut comments);
-                    }
-                }
-                Ok(all)
+            Self::Mssql(db) => {
+                let ph: Vec<String> = therapy_ids.iter().enumerate().map(|(i, _)| format!("@P{}", i + 1)).collect();
+                let sql = format!("SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE therapy_id IN ({}) AND deleted_at IS NULL ORDER BY created_at ASC", ph.join(","));
+                let mut params: Vec<&dyn tiberius::ToSql> = Vec::new();
+                for id in therapy_ids { params.push(id as &dyn tiberius::ToSql); }
+                db.query_all::<TherapyComment>(&sql, &params).await
             }
         }
     }
@@ -1693,7 +1691,7 @@ impl DbPool {
                 if let Some(ref v) = req.ip_address { q = q.bind(v.as_str()); }
                 if let Some(v) = req.port { q = q.bind(v); }
                 if let Some(ref v) = req.label { q = q.bind(v.as_str()); }
-                if let Some(v) = req.is_active { q = q.bind(if v { 1i32 } else { 0i32 }); }
+                if let Some(v) = req.is_active { q = q.bind(v); }
                 q.bind(id).execute(p).await?;
             }
             Self::Mysql(p) => {
@@ -1719,7 +1717,7 @@ impl DbPool {
                 if req.label.is_some() { idx += 1; sets.push(format!("label = @P{}", idx)); }
                 if req.is_active.is_some() { idx += 1; sets.push(format!("is_active = @P{}", idx)); }
                 idx += 1;
-                let sql = format!("UPDATE machine_ips SET {}, updated_at = GETUTCDATE() WHERE id = @P{}", sets.join(", "), idx);
+                let sql = format!("UPDATE machine_ips SET {}, updated_at = CURRENT_TIMESTAMP WHERE id = @P{}", sets.join(", "), idx);
                 let ip_str: &str = req.ip_address.as_deref().unwrap_or("");
                 let label_str: &str = req.label.as_deref().unwrap_or("");
                 let port_val: Option<i64> = req.port.map(|p| p as i64);
@@ -1903,7 +1901,8 @@ impl DbPool {
             Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
             Self::Sqlite(p) => sqlx::query_as(agg_sql).bind(therapy_id).fetch_all(p).await?,
             Self::Postgres(p) => {
-                let pg_sql = agg_sql.replace('?', "$1");
+                let safe_cast = "AVG(CASE WHEN te.physical_value ~ '^[0-9]+(\\.[0-9]+)?$' THEN te.physical_value::double precision END) as average, MIN(CASE WHEN te.physical_value ~ '^[0-9]+(\\.[0-9]+)?$' THEN te.physical_value::double precision END) as minimum, MAX(CASE WHEN te.physical_value ~ '^[0-9]+(\\.[0-9]+)?$' THEN te.physical_value::double precision END) as maximum";
+                let pg_sql = agg_sql.replace("AVG(CAST(te.physical_value AS REAL)) as average, MIN(CAST(te.physical_value AS REAL)) as minimum, MAX(CAST(te.physical_value AS REAL)) as maximum", safe_cast).replace('?', "$1");
                 sqlx::query_as(AssertSqlSafe(pg_sql)).bind(therapy_id).fetch_all(p).await?
             }
             Self::Mysql(p) => sqlx::query_as(agg_sql).bind(therapy_id).fetch_all(p).await?,

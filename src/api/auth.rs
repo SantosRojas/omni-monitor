@@ -14,6 +14,12 @@ pub async fn generate_authorization_code(
     Extension(claims): Extension<JwtClaims>,
     Json(req): Json<GenerateTokenRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    if claims.role.to_lowercase() != "admin" {
+        return Err(AppError::Forbidden);
+    }
+    if req.user_id <= 0 {
+        return Err(AppError::Validation("Invalid user_id".into()));
+    }
     state.pool
         .find_user_by_id(claims.user_id)
         .await
@@ -58,12 +64,12 @@ pub async fn login(
 
     let max_age = state.config.jwt_expiration_hours * 3600;
     let cookie = format!(
-        "monitor_token={}; HttpOnly; SameSite=Lax; Path=/api; Max-Age={}",
+        "monitor_token={}; HttpOnly; SameSite=Strict; Path=/api; Max-Age={}",
         token, max_age
     );
 
     let mut headers = HeaderMap::new();
-    headers.insert(axum::http::header::SET_COOKIE, HeaderValue::from_str(&cookie).unwrap());
+    headers.insert(axum::http::header::SET_COOKIE, HeaderValue::from_str(&cookie).map_err(|e| AppError::Internal(format!("Invalid cookie header: {}", e)))?);
 
     Ok((headers, Json(LoginResponse {
         user: UserResponse::from(user),

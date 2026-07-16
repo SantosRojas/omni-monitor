@@ -36,6 +36,9 @@ pub async fn create_comment(
     if claims.role.to_lowercase() == "viewer" {
         return Err(AppError::Forbidden);
     }
+    if body.comment.trim().is_empty() {
+        return Err(AppError::Validation("Comment cannot be empty".into()));
+    }
     let comment = state.pool.create_therapy_comment(therapy_id, &claims.full_name, &body.comment).await?;
     Ok(Json(comment))
 }
@@ -48,6 +51,9 @@ pub async fn delete_comment(
 ) -> Result<Json<()>, AppError> {
     if claims.role.to_lowercase() == "viewer" {
         return Err(AppError::Forbidden);
+    }
+    if body.deletion_reason.trim().is_empty() {
+        return Err(AppError::Validation("Deletion reason cannot be empty".into()));
     }
     state.pool.delete_therapy_comment(comment_id, &body.deletion_reason).await?;
     Ok(Json(()))

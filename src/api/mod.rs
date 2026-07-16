@@ -32,9 +32,11 @@ pub enum AppError {
     Forbidden,
     Unauthorized,
     InactiveUser,
+    Validation(String),
     Database(String),
     Export(String),
     TokenIssuance,
+    Internal(String),
 }
 
 impl IntoResponse for AppError {
@@ -44,6 +46,7 @@ impl IntoResponse for AppError {
             Self::Forbidden => (StatusCode::FORBIDDEN, "Forbidden".to_string()),
             Self::Unauthorized => (StatusCode::UNAUTHORIZED, "Invalid credentials".to_string()),
             Self::InactiveUser => (StatusCode::FORBIDDEN, "User is inactive".to_string()),
+            Self::Validation(e) => (StatusCode::BAD_REQUEST, e.clone()),
             Self::Database(e) => {
                 tracing::error!(error = %e, "Database error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
@@ -53,6 +56,10 @@ impl IntoResponse for AppError {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Error de exportación".to_string())
             }
             Self::TokenIssuance => (StatusCode::INTERNAL_SERVER_ERROR, "Token issuance failed".to_string()),
+            Self::Internal(e) => {
+                tracing::error!(error = %e, "Internal error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+            }
         };
         (status, Json(serde_json::json!({"error": msg}))).into_response()
     }
@@ -82,6 +89,15 @@ pub async fn auth_middleware(
 
     let claims = crate::auth::decode_token(token, &state.config.jwt_secret, &state.config.jwt_issuer)
         .map_err(|_| (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Invalid token"}))))?;
+
+    let user = state.pool.find_user_by_id(claims.user_id)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal error"}))))?
+        .ok_or((StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "User not found"}))))?;
+
+    if !user.active {
+        return Err((StatusCode::FORBIDDEN, Json(serde_json::json!({"error": "User is inactive"}))));
+    }
 
     req.extensions_mut().insert(claims);
     Ok(next.run(req).await)

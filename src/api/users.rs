@@ -26,6 +26,22 @@ pub async fn create(
     if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
+    if req.username.trim().is_empty() {
+        return Err(AppError::Validation("Username cannot be empty".into()));
+    }
+    if req.password.len() < 6 {
+        return Err(AppError::Validation("Password must be at least 6 characters".into()));
+    }
+    if req.full_name.trim().is_empty() {
+        return Err(AppError::Validation("Full name cannot be empty".into()));
+    }
+    if !req.email.contains('@') {
+        return Err(AppError::Validation("Invalid email address".into()));
+    }
+    let role_lower = req.role.to_lowercase();
+    if role_lower != "admin" && role_lower != "user" && role_lower != "viewer" {
+        return Err(AppError::Validation("Role must be admin, user, or viewer".into()));
+    }
     let user = state.pool.create_user(&req).await?;
     Ok(Json(UserResponse::from(user)))
 }

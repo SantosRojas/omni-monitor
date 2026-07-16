@@ -26,6 +26,14 @@ pub async fn create(
     if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
+    if req.ip_address.trim().is_empty() {
+        return Err(AppError::Validation("IP address cannot be empty".into()));
+    }
+    if let Some(port) = req.port {
+        if port < 1 || port > 65535 {
+            return Err(AppError::Validation("Port must be between 1 and 65535".into()));
+        }
+    }
     if req.machine_id == 0 {
         if let Some(ref serial) = req.serial_number {
             let machine = state.pool.find_machine_by_serial(serial).await?;

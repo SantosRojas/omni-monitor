@@ -58,6 +58,9 @@ pub async fn delete(
     if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
+    if !numeric_value.is_finite() {
+        return Err(AppError::Validation("Numeric value must be a finite number".into()));
+    }
     let reason = params.deletion_reason.unwrap_or_default();
     state.pool.delete_equivalence_with_log(
         signal_id,
