@@ -12,7 +12,8 @@ import { formatDate } from '../utils/date'
 
 function calcDuration(startedAt?: string): string {
   if (!startedAt) return '-'
-  const start = new Date(startedAt + 'Z').getTime()
+  const st = startedAt.endsWith('Z') ? startedAt : startedAt + 'Z'
+  const start = new Date(st).getTime()
   const now = Date.now()
   const diff = now - start
   if (diff < 0) return '-'

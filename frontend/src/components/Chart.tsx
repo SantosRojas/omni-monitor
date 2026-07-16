@@ -44,7 +44,8 @@ export function Chart({ title, signals }: ChartProps) {
     const timeMap = new Map<number, Record<string, number>>()
     for (const s of signals) {
       for (const v of s.values) {
-        const ms = new Date(v.timestamp + 'Z').getTime()
+        const ts = v.timestamp.endsWith('Z') ? v.timestamp : v.timestamp + 'Z'
+        const ms = new Date(ts).getTime()
         const minute = Math.floor(ms / 60000) * 60000
         if (!timeMap.has(minute)) timeMap.set(minute, {})
         timeMap.get(minute)![s.internal_name] = v.value
