@@ -1140,10 +1140,10 @@ impl DbPool {
             Self::Postgres(p) => {
                 if let Some(s) = search {
                     sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str ILIKE $1 ORDER BY active_therapy_count DESC, p.id DESC LIMIT $2 OFFSET $3")
-                        .bind(format!("%{}%", s)).bind(per_page).bind(offset).fetch_all(p).await?
+                        .bind(format!("%{}%", s)).bind(per_page as i32).bind(offset as i32).fetch_all(p).await?
                 } else {
                     sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p ORDER BY active_therapy_count DESC, p.id DESC LIMIT $1 OFFSET $2")
-                        .bind(per_page).bind(offset).fetch_all(p).await?
+                        .bind(per_page as i32).bind(offset as i32).fetch_all(p).await?
                 }
             }
             Self::Mysql(p) => {
@@ -1198,7 +1198,7 @@ impl DbPool {
             }
             Self::Postgres(p) => {
                 sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final , p.patient_id_str FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id LEFT JOIN patients p ON t.patient_id = p.id WHERE t.patient_id = $1 ORDER BY t.started_at DESC LIMIT $2 OFFSET $3")
-                    .bind(patient_id).bind(per_page).bind(offset).fetch_all(p).await?
+                    .bind(patient_id).bind(per_page as i32).bind(offset as i32).fetch_all(p).await?
             }
             Self::Mysql(p) => {
                 sqlx::query_as("SELECT t.id, t.started_at, t.patient_id, t.machine_id, t.status, t.ended_at, m.serial_number, m.software_version, (SELECT mi.ip_address FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as ip_address, (SELECT mi.port FROM machine_ips mi WHERE mi.machine_id = t.machine_id LIMIT 1) as port, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_therapy_mode_set' ORDER BY te.timestamp DESC LIMIT 1) as therapy_type, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'd_kit_type_str' ORDER BY te.timestamp DESC LIMIT 1) as kit, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp ASC LIMIT 1) as weight_initial, (SELECT s.id FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final_signal_id, (SELECT te.physical_value FROM telemetry te JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = t.id AND s.internal_name = 'g_patient_data_weight_set' ORDER BY te.timestamp DESC LIMIT 1) as weight_final , p.patient_id_str FROM therapies t LEFT JOIN machines m ON t.machine_id = m.id LEFT JOIN patients p ON t.patient_id = p.id WHERE t.patient_id = ? ORDER BY t.started_at DESC LIMIT ? OFFSET ?")
@@ -1539,7 +1539,7 @@ impl DbPool {
                 let sql = format!("SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = $1{} ORDER BY te.timestamp DESC LIMIT ${} OFFSET ${}", pg_where, limit_ph, offset_ph);
                 let mut q = sqlx::query_as::<_, TelemetryReading>(AssertSqlSafe(sql)).bind(patient_id);
                 q = bind_extras!(q, signal_ids, date_from, date_to);
-                q.bind(per_page).bind(offset).fetch_all(p).await?
+                q.bind(per_page as i32).bind(offset as i32).fetch_all(p).await?
             }
             Self::Mysql(p) => {
                 let sql = format!("SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = ?{} ORDER BY te.timestamp DESC LIMIT ? OFFSET ?", where_ext);
@@ -1952,7 +1952,7 @@ impl DbPool {
         let sql = "SELECT te.id, te.timestamp, te.signal_id, te.physical_value, COALESCE(s.unit, te.unit) as unit, COALESCE(s.display_name, s.internal_name) as signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = ? ORDER BY te.timestamp";
         let limited_sql = match self {
             Self::Sqlite(_) | Self::Mysql(_) => format!("{} LIMIT {}", sql, EXPORT_LIMIT),
-            Self::Postgres(_) => format!("{} LIMIT ${}", sql.replace('?', "$1"), EXPORT_LIMIT),
+            Self::Postgres(_) => format!("{} LIMIT {}", sql.replace('?', "$1"), EXPORT_LIMIT),
             Self::Mssql(_) => format!("{} OFFSET 0 ROWS FETCH NEXT {} ROWS ONLY", sql.replace('?', "@P1"), EXPORT_LIMIT),
             Self::NoDb => String::new(),
         };
@@ -1970,7 +1970,7 @@ impl DbPool {
         let sql = "SELECT te.id, te.timestamp, te.signal_id, te.physical_value, COALESCE(s.unit, te.unit) as unit, COALESCE(s.display_name, s.internal_name) as signal_name FROM telemetry te LEFT JOIN signals s ON te.signal_id = s.id WHERE te.therapy_id = ? ORDER BY te.timestamp";
         let limited_sql = match self {
             Self::Sqlite(_) | Self::Mysql(_) => format!("{} LIMIT {}", sql, EXPORT_LIMIT),
-            Self::Postgres(_) => format!("{} LIMIT ${}", sql.replace('?', "$1"), EXPORT_LIMIT),
+            Self::Postgres(_) => format!("{} LIMIT {}", sql.replace('?', "$1"), EXPORT_LIMIT),
             Self::Mssql(_) => format!("{} OFFSET 0 ROWS FETCH NEXT {} ROWS ONLY", sql.replace('?', "@P1"), EXPORT_LIMIT),
             Self::NoDb => String::new(),
         };
