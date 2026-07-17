@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { MessageSquare, MessageSquarePlus, Trash2, ExternalLink } from 'lucide-react'
+import { MessageSquare, MessageSquarePlus, Trash2 } from 'lucide-react'
 import type { ActiveTherapy, TherapyComment } from '../types'
 import { getActiveTherapies } from '../api/patients'
 import { createTherapyComment, deleteTherapyComment } from '../api/comments'
@@ -14,6 +14,8 @@ import {
   createColumnHelper,
   useReactTable,
   getCoreRowModel,
+  getFilteredRowModel,
+  type ColumnFiltersState,
 } from '@tanstack/react-table'
 
 const columnHelper = createColumnHelper<ActiveTherapy>()
@@ -128,6 +130,7 @@ export function ActiveTherapiesTable() {
   const [loading, setLoading] = useState(true)
   const [config, setConfig] = useState<AppConfig>({ polling_interval_ms: 15000 })
   const [commentTarget, setCommentTarget] = useState<ActiveTherapy | null>(null)
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 
   const openMachine = useCallback(async (therapy: ActiveTherapy) => {
     if (!therapy.ip_address || !user) return
@@ -256,7 +259,10 @@ export function ActiveTherapiesTable() {
   const table = useReactTable({
     data: therapies,
     columns,
+    state: { columnFilters },
+    onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
   })
 
   if (loading && therapies.length === 0) {
