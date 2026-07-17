@@ -5,6 +5,7 @@ import { getActiveTherapies } from '../api/patients'
 import { createTherapyComment, deleteTherapyComment } from '../api/comments'
 import { generateToken } from '../api/auth'
 import { getConfig, type AppConfig } from '../api/config'
+import { listSignals } from '../api/signals'
 import { Button, Modal } from './ui'
 import { DataTable } from './data-table/DataTable'
 import { useAuth } from '../contexts/AuthContext'
@@ -19,6 +20,18 @@ import {
 } from '@tanstack/react-table'
 
 const columnHelper = createColumnHelper<ActiveTherapy>()
+
+/** Maps column accessor names → actual signal internal_name in the database */
+const SIGNAL_INTERNAL_NAMES: Record<string, string> = {
+  arterial_pressure: 'c_press_ap_act',
+  venous_pressure: 'c_press_vp_act',
+  filter_pressure: 'c_press_fp_act',
+  tmp_pressure: 'c_press_tmp_act',
+  effluent_pressure: 'c_press_ep_act',
+  blood_flow: 'c_pump_bs_bl_flow_act',
+  net_rem_flow: 'c_net_rem_flow_act',
+  fs_mid_flow: 'c_pump_fs_mid_flow_act',
+}
 
 const hideSm = (id: string) =>
   ['time', 'venous_pressure', 'filter_pressure', 'tmp_pressure', 'effluent_pressure', 'net_rem_flow', 'fs_mid_flow'].includes(id)
@@ -131,6 +144,7 @@ export function ActiveTherapiesTable() {
   const [config, setConfig] = useState<AppConfig>({ polling_interval_ms: 15000 })
   const [commentTarget, setCommentTarget] = useState<ActiveTherapy | null>(null)
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [signalsMap, setSignalsMap] = useState<Record<string, string | undefined>>({})
 
   const openMachine = useCallback(async (therapy: ActiveTherapy) => {
     if (!therapy.ip_address || !user) return
@@ -160,6 +174,15 @@ export function ActiveTherapiesTable() {
     getConfig()
       .then(c => setConfig(c))
       .catch(() => { })
+    listSignals()
+      .then(signals => {
+        const map: Record<string, string | undefined> = {}
+        for (const s of signals) {
+          map[s.internal_name] = s.unit
+        }
+        setSignalsMap(map)
+      })
+      .catch(() => { })
   }, [])
 
   useEffect(() => {
@@ -168,93 +191,84 @@ export function ActiveTherapiesTable() {
     return () => clearInterval(id)
   }, [fetchData, config.polling_interval_ms])
 
-  const columns = useMemo(() => [
-    // columnHelper.accessor('patient_id_str', {
-    //   header: 'Paciente',
-    // }),
+  const columns = useMemo(() => {
+    const h = (base: string, accessorName: string) => {
+      const internalName = SIGNAL_INTERNAL_NAMES[accessorName]
+      const u = internalName ? signalsMap[internalName] : undefined
+      return u ? `${base} (${u})` : base
+    }
 
-    columnHelper.display({
-      id: 'patient',
-      header: 'Paciente',
-      cell: ({ row }) => (
-        <button
-          onClick={() => openMachine(row.original)}
-          className="p-1 text-(--text-muted) hover:text-(--accent) cursor-pointer hover:scale-150 transition-transform"
-          title="Ver detalle"
-        >
-          {row.original.patient_id_str}
-        </button>
-      )
-    }),
+    return [
+      columnHelper.display({
+        id: 'patient',
+        header: 'Paciente',
+        cell: ({ row }) => (
+          <button
+            onClick={() => openMachine(row.original)}
+            className="p-1 text-(--text-muted) hover:text-(--accent) cursor-pointer hover:scale-150 transition-transform"
+            title="Ver detalle"
+          >
+            {row.original.patient_id_str}
+          </button>
+        )
+      }),
 
-    columnHelper.accessor('arterial_pressure', {
-      header: 'P. Arterial',
-      cell: i => i.getValue() ?? '-',
-    }),
-    columnHelper.accessor('venous_pressure', {
-      header: 'P. Venosa',
-      cell: i => i.getValue() ?? '-',
-    }),
-    columnHelper.accessor('filter_pressure', {
-      header: 'P. Filtro',
-      cell: i => i.getValue() ?? '-',
-    }),
-    columnHelper.accessor('tmp_pressure', {
-      header: 'TMP',
-      cell: i => i.getValue() ?? '-',
-    }),
-    columnHelper.accessor('effluent_pressure', {
-      header: 'P. Efluente',
-      cell: i => i.getValue() ?? '-',
-    }),
-    columnHelper.accessor('blood_flow', {
-      header: 'Flujo Sangre',
-      cell: i => i.getValue() ?? '-',
-    }),
-    columnHelper.accessor('net_rem_flow', {
-      header: 'Flujo Rem. Neto',
-      cell: i => i.getValue() ?? '-',
-    }),
-    columnHelper.accessor('fs_mid_flow', {
-      header: 'Flujo Diálisis',
-      cell: i => i.getValue() ?? '-',
-    }),
-    columnHelper.display({
-      id: 'comments',
-      header: 'Comentarios',
-      cell: ({ row }) => (
-        <button
-          onClick={() => setCommentTarget(row.original)}
-          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-sm border border-(--glass-border) bg-(--surface-btn) hover:bg-(--surface-btn-hover) cursor-pointer"
-        >
-          <MessageSquare className="w-3.5 h-3.5" />
-          {row.original.comments.length > 0 ? `${row.original.comments.length}` : '0'}
-        </button>
-      ),
-    }),
-    // columnHelper.display({
-    //   id: 'machine',
-    //   header: 'Máquina',
-    //   cell: ({ row }) => row.original.ip_address ? (
-    //     <button
-    //       onClick={() => openMachine(row.original)}
-    //       className="p-1 text-(--text-muted) hover:text-(--accent) cursor-pointer"
-    //       title="Abrir máquina"
-    //     >
-    //       <ExternalLink className="w-4 h-4" />
-    //     </button>
-    //   ) : null,
-    // }),
-    columnHelper.accessor('started_at', {
-      header: 'Inicio',
-      cell: i => (i.getValue() ? formatDate(i.getValue()!) : '-'),
-    }),
-    columnHelper.display({
-      id: 'time',
-      header: 'Tiempo',
-      cell: ({ row }) => <span className="font-medium">{calcDuration(row.original.started_at)}</span>,
-    })
-  ], [openMachine])
+      columnHelper.accessor('arterial_pressure', {
+        header: h('P. Arterial', 'arterial_pressure'),
+        cell: i => i.getValue() ?? '-',
+      }),
+      columnHelper.accessor('venous_pressure', {
+        header: h('P. Venosa', 'venous_pressure'),
+        cell: i => i.getValue() ?? '-',
+      }),
+      columnHelper.accessor('filter_pressure', {
+        header: h('P. Filtro', 'filter_pressure'),
+        cell: i => i.getValue() ?? '-',
+      }),
+      columnHelper.accessor('tmp_pressure', {
+        header: h('TMP', 'tmp_pressure'),
+        cell: i => i.getValue() ?? '-',
+      }),
+      columnHelper.accessor('effluent_pressure', {
+        header: h('P. Efluente', 'effluent_pressure'),
+        cell: i => i.getValue() ?? '-',
+      }),
+      columnHelper.accessor('blood_flow', {
+        header: h('Flujo Sangre', 'blood_flow'),
+        cell: i => i.getValue() ?? '-',
+      }),
+      columnHelper.accessor('net_rem_flow', {
+        header: h('Flujo Rem. Neto', 'net_rem_flow'),
+        cell: i => i.getValue() ?? '-',
+      }),
+      columnHelper.accessor('fs_mid_flow', {
+        header: h('Flujo Diálisis', 'fs_mid_flow'),
+        cell: i => i.getValue() ?? '-',
+      }),
+      columnHelper.display({
+        id: 'comments',
+        header: 'Comentarios',
+        cell: ({ row }) => (
+          <button
+            onClick={() => setCommentTarget(row.original)}
+            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-sm border border-(--glass-border) bg-(--surface-btn) hover:bg-(--surface-btn-hover) cursor-pointer"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            {row.original.comments.length > 0 ? `${row.original.comments.length}` : '0'}
+          </button>
+        ),
+      }),
+      columnHelper.accessor('started_at', {
+        header: 'Inicio',
+        cell: i => (i.getValue() ? formatDate(i.getValue()!) : '-'),
+      }),
+      columnHelper.display({
+        id: 'time',
+        header: 'Tiempo',
+        cell: ({ row }) => <span className="font-medium">{calcDuration(row.original.started_at)}</span>,
+      })
+    ]
+  }, [openMachine, signalsMap])
 
   const table = useReactTable({
     data: therapies,
