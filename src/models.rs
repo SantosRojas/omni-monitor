@@ -64,8 +64,11 @@ pub struct ActiveTherapy {
     pub arterial_pressure: Option<String>,
     pub venous_pressure: Option<String>,
     pub blood_flow: Option<String>,
-    pub weight_initial: Option<String>,
-    pub weight_final: Option<String>,
+    pub filter_pressure: Option<String>,
+    pub tmp_pressure: Option<String>,
+    pub effluent_pressure: Option<String>,
+    pub net_rem_flow: Option<String>,
+    pub fs_mid_flow: Option<String>,
     pub comments: Vec<TherapyComment>,
 }
 

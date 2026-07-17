@@ -193,7 +193,10 @@ export interface ActiveTherapy {
   arterial_pressure?: string
   venous_pressure?: string
   blood_flow?: string
-  weight_initial?: string
-  weight_final?: string
+  filter_pressure?: string
+  tmp_pressure?: string
+  effluent_pressure?: string
+  net_rem_flow?: string
+  fs_mid_flow?: string
   comments: TherapyComment[]
 }

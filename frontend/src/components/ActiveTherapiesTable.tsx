@@ -1,14 +1,27 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { MessageSquare, MessageSquarePlus, Trash2, ExternalLink } from 'lucide-react'
 import type { ActiveTherapy, TherapyComment } from '../types'
 import { getActiveTherapies } from '../api/patients'
 import { createTherapyComment, deleteTherapyComment } from '../api/comments'
 import { generateToken } from '../api/auth'
 import { getConfig, type AppConfig } from '../api/config'
-import { Spinner, Button, Modal } from './ui'
+import { Button, Modal } from './ui'
+import { DataTable } from './data-table/DataTable'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { formatDate } from '../utils/date'
+import {
+  createColumnHelper,
+  useReactTable,
+  getCoreRowModel,
+} from '@tanstack/react-table'
+
+const columnHelper = createColumnHelper<ActiveTherapy>()
+
+const hideSm = (id: string) =>
+  ['time', 'venous_pressure', 'filter_pressure', 'tmp_pressure', 'effluent_pressure', 'net_rem_flow', 'fs_mid_flow'].includes(id)
+    ? 'hidden md:table-cell'
+    : ''
 
 function calcDuration(startedAt?: string): string {
   if (!startedAt) return '-'
@@ -152,86 +165,124 @@ export function ActiveTherapiesTable() {
     return () => clearInterval(id)
   }, [fetchData, config.polling_interval_ms])
 
-  if (loading) return <Spinner message="Cargando terapias activas..." />
+  const columns = useMemo(() => [
+    // columnHelper.accessor('patient_id_str', {
+    //   header: 'Paciente',
+    // }),
+
+    columnHelper.display({
+      id: 'patient',
+      header: 'Paciente',
+      cell: ({ row }) => (
+        <button
+          onClick={() => openMachine(row.original)}
+          className="p-1 text-(--text-muted) hover:text-(--accent) cursor-pointer hover:scale-150 transition-transform"
+          title="Ver detalle"
+        >
+          {row.original.patient_id_str}
+        </button>
+      )
+    }),
+
+    columnHelper.accessor('arterial_pressure', {
+      header: 'P. Arterial',
+      cell: i => i.getValue() ?? '-',
+    }),
+    columnHelper.accessor('venous_pressure', {
+      header: 'P. Venosa',
+      cell: i => i.getValue() ?? '-',
+    }),
+    columnHelper.accessor('filter_pressure', {
+      header: 'P. Filtro',
+      cell: i => i.getValue() ?? '-',
+    }),
+    columnHelper.accessor('tmp_pressure', {
+      header: 'TMP',
+      cell: i => i.getValue() ?? '-',
+    }),
+    columnHelper.accessor('effluent_pressure', {
+      header: 'P. Efluente',
+      cell: i => i.getValue() ?? '-',
+    }),
+    columnHelper.accessor('blood_flow', {
+      header: 'Flujo Sangre',
+      cell: i => i.getValue() ?? '-',
+    }),
+    columnHelper.accessor('net_rem_flow', {
+      header: 'Flujo Rem. Neto',
+      cell: i => i.getValue() ?? '-',
+    }),
+    columnHelper.accessor('fs_mid_flow', {
+      header: 'Flujo Diálisis',
+      cell: i => i.getValue() ?? '-',
+    }),
+    columnHelper.display({
+      id: 'comments',
+      header: 'Comentarios',
+      cell: ({ row }) => (
+        <button
+          onClick={() => setCommentTarget(row.original)}
+          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-sm border border-(--glass-border) bg-(--surface-btn) hover:bg-(--surface-btn-hover) cursor-pointer"
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          {row.original.comments.length > 0 ? `${row.original.comments.length}` : '0'}
+        </button>
+      ),
+    }),
+    // columnHelper.display({
+    //   id: 'machine',
+    //   header: 'Máquina',
+    //   cell: ({ row }) => row.original.ip_address ? (
+    //     <button
+    //       onClick={() => openMachine(row.original)}
+    //       className="p-1 text-(--text-muted) hover:text-(--accent) cursor-pointer"
+    //       title="Abrir máquina"
+    //     >
+    //       <ExternalLink className="w-4 h-4" />
+    //     </button>
+    //   ) : null,
+    // }),
+    columnHelper.accessor('started_at', {
+      header: 'Inicio',
+      cell: i => (i.getValue() ? formatDate(i.getValue()!) : '-'),
+    }),
+    columnHelper.display({
+      id: 'time',
+      header: 'Tiempo',
+      cell: ({ row }) => <span className="font-medium">{calcDuration(row.original.started_at)}</span>,
+    })
+  ], [openMachine])
+
+  const table = useReactTable({
+    data: therapies,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+  })
+
+  if (loading && therapies.length === 0) {
+    return (
+      <DataTable table={table} loading={loading}>
+        <DataTable.Grid />
+      </DataTable>
+    )
+  }
 
   if (therapies.length === 0) return null
 
   return (
     <>
-      <div className="glass overflow-x-auto mb-4">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-(--text-muted)">
-            Pacientes con terapia activa
-          </h2>
-          <span className="text-xs text-(--text-muted)">{therapies.length} activos</span>
-        </div>
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-(--border-subtle)">Inicio</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-(--border-subtle)">Tiempo</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-(--border-subtle)">Paciente</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-(--border-subtle)">P. Arterial</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-(--border-subtle)">P. Venosa</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-(--border-subtle)">Flujo Sangre</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-(--border-subtle)">Peso Inicial</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-(--border-subtle)">Peso Actual</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-(--border-subtle)">Comentarios</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-(--text-muted) border-b border-(--border-subtle)">Máquina</th>
-            </tr>
-          </thead>
-          <tbody>
-            {therapies.map(t => (
-              <tr key={t.therapy_id} className="hover:bg-(--surface-row-hover) transition-colors">
-                <td className="px-3 py-2 text-sm text-(--text-secondary) border-b border-(--border-subtle) whitespace-nowrap">
-                  {t.started_at ? formatDate(t.started_at) : '-'}
-                </td>
-                <td className="px-3 py-2 text-sm text-(--text-secondary) border-b border-(--border-subtle) whitespace-nowrap font-medium">
-                  {calcDuration(t.started_at)}
-                </td>
-                <td className="px-3 py-2 text-sm text-(--text-secondary) border-b border-(--border-subtle) whitespace-nowrap">
-                  {t.patient_id_str}
-                </td>
-                <td className="px-3 py-2 text-sm text-(--text-secondary) border-b border-(--border-subtle) whitespace-nowrap">
-                  {t.arterial_pressure ?? '-'}
-                </td>
-                <td className="px-3 py-2 text-sm text-(--text-secondary) border-b border-(--border-subtle) whitespace-nowrap">
-                  {t.venous_pressure ?? '-'}
-                </td>
-                <td className="px-3 py-2 text-sm text-(--text-secondary) border-b border-(--border-subtle) whitespace-nowrap">
-                  {t.blood_flow ?? '-'}
-                </td>
-                <td className="px-3 py-2 text-sm text-(--text-secondary) border-b border-(--border-subtle) whitespace-nowrap">
-                  {t.weight_initial ?? '-'}
-                </td>
-                <td className="px-3 py-2 text-sm text-(--text-secondary) border-b border-(--border-subtle) whitespace-nowrap">
-                  {t.weight_final ?? '-'}
-                </td>
-                <td className="px-3 py-2 text-sm text-(--text-secondary) border-b border-(--border-subtle)">
-                  <button
-                    onClick={() => setCommentTarget(t)}
-                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-sm border border-(--glass-border) bg-(--surface-btn) hover:bg-(--surface-btn-hover) cursor-pointer"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    {t.comments.length > 0 ? `${t.comments.length}` : '0'}
-                  </button>
-                </td>
-                <td className="px-3 py-2 text-sm border-b border-(--border-subtle)">
-                  {t.ip_address && (
-                    <button
-                      onClick={() => openMachine(t)}
-                      className="p-1 text-(--text-muted) hover:text-(--accent) cursor-pointer"
-                      title="Abrir máquina"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-(--text-muted)">
+          Pacientes con terapia activa
+        </h2>
+        <span className="text-xs text-(--text-muted)">{therapies.length} activos</span>
       </div>
+      <DataTable table={table} loading={loading}>
+        <DataTable.Grid
+          emptyMessage="Sin pacientes con terapia activa"
+          hideSm={hideSm}
+        />
+      </DataTable>
 
       {commentTarget && (
         <CommentModal

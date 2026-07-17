@@ -85,7 +85,7 @@ export function PatientsPage() {
   })
 
   return (
-    <div>
+    <div className="flex flex-col gap-6">
       <ActiveTherapiesTable />
 
       {loading ? <Spinner message="Cargando pacientes..." /> : (
