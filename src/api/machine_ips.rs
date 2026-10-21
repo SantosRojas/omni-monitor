@@ -29,19 +29,19 @@ pub async fn create(
     if req.ip_address.trim().is_empty() {
         return Err(AppError::Validation("IP address cannot be empty".into()));
     }
-    if let Some(port) = req.port {
-        if port < 1 || port > 65535 {
-            return Err(AppError::Validation("Port must be between 1 and 65535".into()));
-        }
+    if let Some(port) = req.port
+        && (!(1..=65535).contains(&port))
+    {
+        return Err(AppError::Validation("Port must be between 1 and 65535".into()));
     }
-    if req.machine_id == 0 {
-        if let Some(ref serial) = req.serial_number {
-            let machine = state.pool.find_machine_by_serial(serial).await?;
-            req.machine_id = match machine {
-                Some(m) => m.id,
-                None => state.pool.create_machine(serial).await?.id,
-            };
-        }
+    if req.machine_id == 0
+        && let Some(ref serial) = req.serial_number
+    {
+        let machine = state.pool.find_machine_by_serial(serial).await?;
+        req.machine_id = match machine {
+            Some(m) => m.id,
+            None => state.pool.create_machine(serial).await?.id,
+        };
     }
     let item = state.pool.create_machine_ip(&req).await?;
     Ok(Json(item))

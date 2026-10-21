@@ -119,7 +119,7 @@ fn col_opt_str(row: &Row, name: &str) -> Result<Option<String>, sqlx::Error> {
     }
 }
 
-fn col_bool<'a>(row: &'a Row, name: &str) -> Result<bool, sqlx::Error> {
+fn col_bool(row: &Row, name: &str) -> Result<bool, sqlx::Error> {
     if let Ok(Some(v)) = row.try_get::<i32, &str>(name) {
         Ok(v != 0)
     } else if let Ok(Some(v)) = row.try_get::<bool, &str>(name) {
@@ -129,7 +129,7 @@ fn col_bool<'a>(row: &'a Row, name: &str) -> Result<bool, sqlx::Error> {
     }
 }
 
-fn col_opt_dt<'a>(row: &'a Row, name: &str) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
+fn col_opt_dt(row: &Row, name: &str) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
     match row.try_get::<DateTime<Utc>, &str>(name) {
         Ok(v) => Ok(v),
         Err(e) => Err(sqlx::Error::Protocol(format!("column '{}': {}", name, e))),
@@ -1447,25 +1447,25 @@ impl DbPool {
             .into_iter()
             .map(|r| {
                 let mut t = TherapyWithMachine::from(r.clone());
-                if let (Some(sig_id), Some(ref val)) = (r.therapy_type_signal_id, t.therapy_type.clone()) {
-                    if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
-                        t.therapy_type = Some(display.to_string());
-                    }
+                if let (Some(sig_id), Some(ref val)) = (r.therapy_type_signal_id, t.therapy_type.clone())
+                    && let Some(display) = lookup_equivalence(sig_id, val, &equivalences)
+                {
+                    t.therapy_type = Some(display.to_string());
                 }
-                if let (Some(sig_id), Some(ref val)) = (r.kit_signal_id, t.kit.clone()) {
-                    if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
-                        t.kit = Some(display.to_string());
-                    }
+                if let (Some(sig_id), Some(ref val)) = (r.kit_signal_id, t.kit.clone())
+                    && let Some(display) = lookup_equivalence(sig_id, val, &equivalences)
+                {
+                    t.kit = Some(display.to_string());
                 }
-                if let (Some(sig_id), Some(ref val)) = (r.weight_initial_signal_id, t.weight_initial.clone()) {
-                    if let Some(display) = lookup_equivalence(sig_id, val, &equivalences) {
-                        t.weight_initial = Some(display.to_string());
-                    }
+                if let (Some(sig_id), Some(ref val)) = (r.weight_initial_signal_id, t.weight_initial.clone())
+                    && let Some(display) = lookup_equivalence(sig_id, val, &equivalences)
+                {
+                    t.weight_initial = Some(display.to_string());
                 }
-                if let (Some(sig_id), Some(ref val)) = (r.weight_final_signal_id, t.weight_final.clone()) {
-                    if let Some(display) = lookup_equivalence(sig_id, val, &equivalences) {
-                        t.weight_final = Some(display.to_string());
-                    }
+                if let (Some(sig_id), Some(ref val)) = (r.weight_final_signal_id, t.weight_final.clone())
+                    && let Some(display) = lookup_equivalence(sig_id, val, &equivalences)
+                {
+                    t.weight_final = Some(display.to_string());
                 }
                 t
             })
@@ -1502,25 +1502,25 @@ impl DbPool {
         let equivalences = self.load_equivalences().await.unwrap_or_default();
         Ok(raw.map(|r| {
             let mut t = TherapyWithMachine::from(r.clone());
-            if let (Some(sig_id), Some(ref val)) = (r.therapy_type_signal_id, t.therapy_type.clone()) {
-                if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
-                    t.therapy_type = Some(display.to_string());
-                }
+            if let (Some(sig_id), Some(ref val)) = (r.therapy_type_signal_id, t.therapy_type.clone())
+                && let Some(display) = lookup_equivalence(sig_id, val, &equivalences)
+            {
+                t.therapy_type = Some(display.to_string());
             }
-            if let (Some(sig_id), Some(ref val)) = (r.kit_signal_id, t.kit.clone()) {
-                if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
-                    t.kit = Some(display.to_string());
-                }
+            if let (Some(sig_id), Some(ref val)) = (r.kit_signal_id, t.kit.clone())
+                && let Some(display) = lookup_equivalence(sig_id, val, &equivalences)
+            {
+                t.kit = Some(display.to_string());
             }
-            if let (Some(sig_id), Some(ref val)) = (r.weight_initial_signal_id, t.weight_initial.clone()) {
-                if let Some(display) = lookup_equivalence(sig_id, val, &equivalences) {
-                    t.weight_initial = Some(display.to_string());
-                }
+            if let (Some(sig_id), Some(ref val)) = (r.weight_initial_signal_id, t.weight_initial.clone())
+                && let Some(display) = lookup_equivalence(sig_id, val, &equivalences)
+            {
+                t.weight_initial = Some(display.to_string());
             }
-            if let (Some(sig_id), Some(ref val)) = (r.weight_final_signal_id, t.weight_final.clone()) {
-                if let Some(display) = lookup_equivalence(sig_id, val, &equivalences) {
-                    t.weight_final = Some(display.to_string());
-                }
+            if let (Some(sig_id), Some(ref val)) = (r.weight_final_signal_id, t.weight_final.clone())
+                && let Some(display) = lookup_equivalence(sig_id, val, &equivalences)
+            {
+                t.weight_final = Some(display.to_string());
             }
             t
         }))
@@ -2633,10 +2633,9 @@ impl DbPool {
                 Ok(id)
             }
             Self::Mssql(db) => {
-                if let Some(id) = db
+                if let Ok(id) = db
                     .query_scalar::<i64>("SELECT id FROM signals WHERE internal_name = @P1", tp!(internal_name))
                     .await
-                    .ok()
                 {
                     return Ok(id);
                 }
