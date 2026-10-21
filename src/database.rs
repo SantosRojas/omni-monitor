@@ -1,12 +1,12 @@
-use std::collections::HashMap;
-use std::str::FromStr;
 use chrono::{DateTime, Utc};
 use sqlx::{
+    AssertSqlSafe, ConnectOptions, MySql, Pool, Sqlite,
     mysql::{MySqlConnectOptions, MySqlPoolOptions},
     postgres::{PgConnectOptions, PgPoolOptions},
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
-    AssertSqlSafe, ConnectOptions, MySql, Pool, Sqlite,
 };
+use std::collections::HashMap;
+use std::str::FromStr;
 use tracing::log::LevelFilter;
 
 use crate::config::MonitorConfig;
@@ -66,7 +66,10 @@ impl MssqlDb {
 
     async fn execute(&self, sql: &str, params: &[&dyn tiberius::ToSql]) -> Result<u64, sqlx::Error> {
         let mut conn = self.conn().await?;
-        conn.execute(sql, params).await.map_err(|e| sqlx::Error::Protocol(e.to_string())).map(|r| r.total())
+        conn.execute(sql, params)
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))
+            .map(|r| r.total())
     }
 
     async fn simple_query(&self, sql: &str) -> Result<(), sqlx::Error> {
@@ -125,8 +128,6 @@ fn col_bool<'a>(row: &'a Row, name: &str) -> Result<bool, sqlx::Error> {
         Err(sqlx::Error::Protocol(format!("missing column '{}'", name)))
     }
 }
-
-
 
 fn col_opt_dt<'a>(row: &'a Row, name: &str) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
     match row.try_get::<DateTime<Utc>, &str>(name) {
@@ -394,10 +395,7 @@ impl DbPool {
                 let opts = SqliteConnectOptions::from_str(&url)?
                     .create_if_missing(true)
                     .log_statements(LevelFilter::Debug);
-                let pool = SqlitePoolOptions::new()
-                    .max_connections(5)
-                    .connect_with(opts)
-                    .await?;
+                let pool = SqlitePoolOptions::new().max_connections(5).connect_with(opts).await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS users (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -409,7 +407,9 @@ impl DbPool {
                         active INTEGER NOT NULL DEFAULT 1,
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS machines (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -418,7 +418,9 @@ impl DbPool {
                         registered_at DATETIME,
                         status TEXT
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS signals (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -426,7 +428,9 @@ impl DbPool {
                         display_name TEXT,
                         unit TEXT
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS attribute_equivalences (
                         signal_id INTEGER NOT NULL,
@@ -434,14 +438,18 @@ impl DbPool {
                         display_name TEXT NOT NULL,
                         PRIMARY KEY (signal_id, numeric_value)
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS patients (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         patient_id_str TEXT NOT NULL,
                         created_at DATETIME
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS therapies (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -451,7 +459,9 @@ impl DbPool {
                         status TEXT,
                         ended_at DATETIME
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS telemetry (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -462,7 +472,9 @@ impl DbPool {
                         physical_value TEXT,
                         unit TEXT
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS machine_ips (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -479,9 +491,11 @@ impl DbPool {
                 .execute(&pool)
                 .await?;
                 sqlx::query("CREATE INDEX IF NOT EXISTS idx_machine_ips_machine ON machine_ips(machine_id)")
-                    .execute(&pool).await?;
+                    .execute(&pool)
+                    .await?;
                 sqlx::query("CREATE INDEX IF NOT EXISTS idx_machine_ips_active ON machine_ips(machine_id, is_active)")
-                    .execute(&pool).await?;
+                    .execute(&pool)
+                    .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS equivalence_deletion_log (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -492,7 +506,8 @@ impl DbPool {
                         deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP
                     )",
                 )
-                .execute(&pool).await?;
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS therapy_comments (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -504,7 +519,8 @@ impl DbPool {
                         deletion_reason TEXT
                     )",
                 )
-                .execute(&pool).await?;
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS authorization_codes (
                         code TEXT PRIMARY KEY,
@@ -513,7 +529,8 @@ impl DbPool {
                         used INTEGER NOT NULL DEFAULT 0
                     )",
                 )
-                .execute(&pool).await?;
+                .execute(&pool)
+                .await?;
                 Ok(Self::Sqlite(pool))
             }
             "postgres" | "pgsql" | "postgresql" => {
@@ -524,10 +541,7 @@ impl DbPool {
                     .password(&config.db_password)
                     .database(&config.db_database)
                     .log_statements(LevelFilter::Debug);
-                let pool = PgPoolOptions::new()
-                    .max_connections(10)
-                    .connect_with(opts)
-                    .await?;
+                let pool = PgPoolOptions::new().max_connections(10).connect_with(opts).await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS users (
                         id BIGSERIAL PRIMARY KEY,
@@ -539,7 +553,9 @@ impl DbPool {
                         active BOOLEAN NOT NULL DEFAULT TRUE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS machines (
                         id BIGSERIAL PRIMARY KEY,
@@ -548,7 +564,9 @@ impl DbPool {
                         registered_at TIMESTAMP,
                         status TEXT
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS signals (
                         id BIGSERIAL PRIMARY KEY,
@@ -556,7 +574,9 @@ impl DbPool {
                         display_name TEXT,
                         unit TEXT
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS attribute_equivalences (
                         signal_id BIGINT NOT NULL,
@@ -564,14 +584,18 @@ impl DbPool {
                         display_name TEXT NOT NULL,
                         PRIMARY KEY (signal_id, numeric_value)
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS patients (
                         id BIGSERIAL PRIMARY KEY,
                         patient_id_str TEXT NOT NULL,
                         created_at TIMESTAMP
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS therapies (
                         id BIGSERIAL PRIMARY KEY,
@@ -581,7 +605,9 @@ impl DbPool {
                         status TEXT,
                         ended_at TIMESTAMP
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS telemetry (
                         id BIGSERIAL PRIMARY KEY,
@@ -592,7 +618,9 @@ impl DbPool {
                         physical_value TEXT,
                         unit TEXT
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS machine_ips (
                         id BIGSERIAL PRIMARY KEY,
@@ -608,9 +636,11 @@ impl DbPool {
                 .execute(&pool)
                 .await?;
                 sqlx::query("CREATE INDEX IF NOT EXISTS idx_machine_ips_machine ON machine_ips(machine_id)")
-                    .execute(&pool).await?;
+                    .execute(&pool)
+                    .await?;
                 sqlx::query("CREATE INDEX IF NOT EXISTS idx_machine_ips_active ON machine_ips(machine_id, is_active)")
-                    .execute(&pool).await?;
+                    .execute(&pool)
+                    .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS equivalence_deletion_log (
                         id BIGSERIAL PRIMARY KEY,
@@ -621,7 +651,8 @@ impl DbPool {
                         deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )",
                 )
-                .execute(&pool).await?;
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS therapy_comments (
                         id BIGSERIAL PRIMARY KEY,
@@ -633,7 +664,8 @@ impl DbPool {
                         deletion_reason TEXT
                     )",
                 )
-                .execute(&pool).await?;
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS authorization_codes (
                         code TEXT PRIMARY KEY,
@@ -642,7 +674,8 @@ impl DbPool {
                         used BOOLEAN NOT NULL DEFAULT FALSE
                     )",
                 )
-                .execute(&pool).await?;
+                .execute(&pool)
+                .await?;
                 Ok(Self::Postgres(pool))
             }
             "mysql" | "mariadb" => {
@@ -653,10 +686,7 @@ impl DbPool {
                     .password(&config.db_password)
                     .database(&config.db_database)
                     .log_statements(LevelFilter::Debug);
-                let pool = MySqlPoolOptions::new()
-                    .max_connections(10)
-                    .connect_with(opts)
-                    .await?;
+                let pool = MySqlPoolOptions::new().max_connections(10).connect_with(opts).await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS users (
                         id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -668,7 +698,9 @@ impl DbPool {
                         active TINYINT(1) NOT NULL DEFAULT 1,
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS machines (
                         id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -677,7 +709,9 @@ impl DbPool {
                         registered_at DATETIME,
                         status VARCHAR(50)
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS signals (
                         id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -685,7 +719,9 @@ impl DbPool {
                         display_name VARCHAR(255),
                         unit VARCHAR(50)
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS attribute_equivalences (
                         signal_id BIGINT NOT NULL,
@@ -693,14 +729,18 @@ impl DbPool {
                         display_name VARCHAR(255) NOT NULL,
                         PRIMARY KEY (signal_id, numeric_value)
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS patients (
                         id BIGINT AUTO_INCREMENT PRIMARY KEY,
                         patient_id_str VARCHAR(255) NOT NULL,
                         created_at DATETIME
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS therapies (
                         id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -710,7 +750,9 @@ impl DbPool {
                         status VARCHAR(50),
                         ended_at DATETIME
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS telemetry (
                         id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -721,7 +763,9 @@ impl DbPool {
                         physical_value TEXT,
                         unit VARCHAR(50)
                     )",
-                ).execute(&pool).await?;
+                )
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS machine_ips (
                         id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -738,9 +782,11 @@ impl DbPool {
                 .execute(&pool)
                 .await?;
                 sqlx::query("CREATE INDEX IF NOT EXISTS idx_machine_ips_machine ON machine_ips(machine_id)")
-                    .execute(&pool).await?;
+                    .execute(&pool)
+                    .await?;
                 sqlx::query("CREATE INDEX IF NOT EXISTS idx_machine_ips_active ON machine_ips(machine_id, is_active)")
-                    .execute(&pool).await?;
+                    .execute(&pool)
+                    .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS equivalence_deletion_log (
                         id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -751,7 +797,8 @@ impl DbPool {
                         deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP
                     )",
                 )
-                .execute(&pool).await?;
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS therapy_comments (
                         id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -763,7 +810,8 @@ impl DbPool {
                         deletion_reason TEXT
                     )",
                 )
-                .execute(&pool).await?;
+                .execute(&pool)
+                .await?;
                 sqlx::query(
                     "CREATE TABLE IF NOT EXISTS authorization_codes (
                         code VARCHAR(255) PRIMARY KEY,
@@ -772,7 +820,8 @@ impl DbPool {
                         used TINYINT(1) NOT NULL DEFAULT 0
                     )",
                 )
-                .execute(&pool).await?;
+                .execute(&pool)
+                .await?;
                 Ok(Self::Mysql(pool))
             }
             "mssql" | "sqlsrv" => {
@@ -798,8 +847,9 @@ impl DbPool {
                     .await
                     .map_err(|e| sqlx::Error::Configuration(format!("bb8 pool build failed: {}", e).into()))?;
                 let mssql = MssqlDb::new(pool);
-                mssql.simple_query(
-                    "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'users')
+                mssql
+                    .simple_query(
+                        "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'users')
                         CREATE TABLE users (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
                             username NVARCHAR(255) NOT NULL,
@@ -810,9 +860,11 @@ impl DbPool {
                             active BIT NOT NULL DEFAULT 1,
                             created_at DATETIME2 DEFAULT CURRENT_TIMESTAMP
                         )",
-                ).await?;
-                mssql.simple_query(
-                    "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'machines')
+                    )
+                    .await?;
+                mssql
+                    .simple_query(
+                        "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'machines')
                         CREATE TABLE machines (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
                             serial_number NVARCHAR(255) NOT NULL,
@@ -820,35 +872,43 @@ impl DbPool {
                             registered_at DATETIME2,
                             status NVARCHAR(50)
                         )",
-                ).await?;
-                mssql.simple_query(
-                    "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'signals')
+                    )
+                    .await?;
+                mssql
+                    .simple_query(
+                        "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'signals')
                         CREATE TABLE signals (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
                             internal_name NVARCHAR(255) NOT NULL,
                             display_name NVARCHAR(255),
                             unit NVARCHAR(50)
                         )",
-                ).await?;
-                mssql.simple_query(
-                    "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'attribute_equivalences')
+                    )
+                    .await?;
+                mssql
+                    .simple_query(
+                        "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'attribute_equivalences')
                         CREATE TABLE attribute_equivalences (
                             signal_id BIGINT NOT NULL,
                             numeric_value FLOAT NOT NULL,
                             display_name NVARCHAR(255) NOT NULL,
                             PRIMARY KEY (signal_id, numeric_value)
                         )",
-                ).await?;
-                mssql.simple_query(
-                    "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'patients')
+                    )
+                    .await?;
+                mssql
+                    .simple_query(
+                        "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'patients')
                         CREATE TABLE patients (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
                             patient_id_str NVARCHAR(255) NOT NULL,
                             created_at DATETIME2
                         )",
-                ).await?;
-                mssql.simple_query(
-                    "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'therapies')
+                    )
+                    .await?;
+                mssql
+                    .simple_query(
+                        "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'therapies')
                         CREATE TABLE therapies (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
                             started_at DATETIME2,
@@ -857,9 +917,11 @@ impl DbPool {
                             status NVARCHAR(50),
                             ended_at DATETIME2
                         )",
-                ).await?;
-                mssql.simple_query(
-                    "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'telemetry')
+                    )
+                    .await?;
+                mssql
+                    .simple_query(
+                        "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'telemetry')
                         CREATE TABLE telemetry (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
                             timestamp DATETIME2,
@@ -869,9 +931,11 @@ impl DbPool {
                             physical_value NVARCHAR(MAX),
                             unit NVARCHAR(50)
                         )",
-                ).await?;
-                mssql.simple_query(
-                    "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'machine_ips')
+                    )
+                    .await?;
+                mssql
+                    .simple_query(
+                        "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'machine_ips')
                         CREATE TABLE machine_ips (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
                             machine_id BIGINT NOT NULL REFERENCES machines(id),
@@ -882,7 +946,8 @@ impl DbPool {
                             created_at DATETIME2 DEFAULT CURRENT_TIMESTAMP,
                             updated_at DATETIME2 DEFAULT CURRENT_TIMESTAMP
                         )",
-                ).await?;
+                    )
+                    .await?;
                 mssql.simple_query(
                     "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_machine_ips_machine' AND object_id = OBJECT_ID('machine_ips'))
                         CREATE INDEX idx_machine_ips_machine ON machine_ips(machine_id)",
@@ -891,8 +956,9 @@ impl DbPool {
                     "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_machine_ips_active' AND object_id = OBJECT_ID('machine_ips'))
                         CREATE INDEX idx_machine_ips_active ON machine_ips(machine_id, is_active)",
                 ).await?;
-                mssql.simple_query(
-                    "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'equivalence_deletion_log')
+                mssql
+                    .simple_query(
+                        "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'equivalence_deletion_log')
                         CREATE TABLE equivalence_deletion_log (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
                             signal_id BIGINT NOT NULL,
@@ -901,9 +967,11 @@ impl DbPool {
                             deletion_reason NVARCHAR(MAX) NOT NULL,
                             deleted_at DATETIME2 DEFAULT CURRENT_TIMESTAMP
                         )",
-                ).await?;
-                mssql.simple_query(
-                    "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'therapy_comments')
+                    )
+                    .await?;
+                mssql
+                    .simple_query(
+                        "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'therapy_comments')
                         CREATE TABLE therapy_comments (
                             id BIGINT IDENTITY(1,1) PRIMARY KEY,
                             therapy_id BIGINT NOT NULL,
@@ -913,16 +981,19 @@ impl DbPool {
                             deleted_at DATETIME2,
                             deletion_reason NVARCHAR(MAX)
                         )",
-                ).await?;
-                mssql.simple_query(
-                    "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'authorization_codes')
+                    )
+                    .await?;
+                mssql
+                    .simple_query(
+                        "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'authorization_codes')
                         CREATE TABLE authorization_codes (
                             code NVARCHAR(255) PRIMARY KEY,
                             user_id BIGINT NOT NULL,
                             expires_at DATETIME2,
                             used BIT NOT NULL DEFAULT 0
                         )",
-                ).await?;
+                    )
+                    .await?;
                 Ok(Self::Mssql(mssql))
             }
             other => Err(sqlx::Error::Configuration(
@@ -934,18 +1005,36 @@ impl DbPool {
     // --- Users ---
     pub async fn find_user_by_username(&self, username: &str) -> Result<Option<User>, sqlx::Error> {
         match self {
-            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
-                Self::Sqlite(p) => sqlx::query_as("SELECT * FROM users WHERE username = ?").bind(username).fetch_optional(p).await,
-            Self::Postgres(p) => sqlx::query_as("SELECT * FROM users WHERE username = $1").bind(username).fetch_optional(p).await,
-            Self::Mysql(p) => sqlx::query_as("SELECT * FROM users WHERE username = ?").bind(username).fetch_optional(p).await,
-            Self::Mssql(db) => db.query_one::<User>("SELECT * FROM users WHERE username = @P1", tp!(username)).await,
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => {
+                sqlx::query_as("SELECT * FROM users WHERE username = ?")
+                    .bind(username)
+                    .fetch_optional(p)
+                    .await
+            }
+            Self::Postgres(p) => {
+                sqlx::query_as("SELECT * FROM users WHERE username = $1")
+                    .bind(username)
+                    .fetch_optional(p)
+                    .await
+            }
+            Self::Mysql(p) => {
+                sqlx::query_as("SELECT * FROM users WHERE username = ?")
+                    .bind(username)
+                    .fetch_optional(p)
+                    .await
+            }
+            Self::Mssql(db) => {
+                db.query_one::<User>("SELECT * FROM users WHERE username = @P1", tp!(username))
+                    .await
+            }
         }
     }
 
     pub async fn find_user_by_id(&self, id: i64) -> Result<Option<User>, sqlx::Error> {
         match self {
-            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
-                Self::Sqlite(p) => sqlx::query_as("SELECT * FROM users WHERE id = ?").bind(id).fetch_optional(p).await,
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => sqlx::query_as("SELECT * FROM users WHERE id = ?").bind(id).fetch_optional(p).await,
             Self::Postgres(p) => sqlx::query_as("SELECT * FROM users WHERE id = $1").bind(id).fetch_optional(p).await,
             Self::Mysql(p) => sqlx::query_as("SELECT * FROM users WHERE id = ?").bind(id).fetch_optional(p).await,
             Self::Mssql(db) => db.query_one::<User>("SELECT * FROM users WHERE id = @P1", tp!(id)).await,
@@ -954,8 +1043,8 @@ impl DbPool {
 
     pub async fn list_users(&self) -> Result<Vec<User>, sqlx::Error> {
         match self {
-            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
-                Self::Sqlite(p) => sqlx::query_as("SELECT * FROM users ORDER BY id").fetch_all(p).await,
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => sqlx::query_as("SELECT * FROM users ORDER BY id").fetch_all(p).await,
             Self::Postgres(p) => sqlx::query_as("SELECT * FROM users ORDER BY id").fetch_all(p).await,
             Self::Mysql(p) => sqlx::query_as("SELECT * FROM users ORDER BY id").fetch_all(p).await,
             Self::Mssql(db) => db.query_all::<User>("SELECT * FROM users ORDER BY id", &[]).await,
@@ -995,66 +1084,131 @@ impl DbPool {
 
     pub async fn update_user(&self, id: i64, req: &UpdateUserRequest) -> Result<Option<User>, sqlx::Error> {
         let pw = match &req.password {
-            Some(v) => Some(crate::auth::hash_password(v)
-                .map_err(|e| sqlx::Error::Configuration(format!("Password hashing failed: {}", e).into()))?),
+            Some(v) => Some(
+                crate::auth::hash_password(v).map_err(|e| sqlx::Error::Configuration(format!("Password hashing failed: {}", e).into()))?,
+            ),
             None => None,
         };
-        let has_fields = pw.is_some()
-            || req.full_name.is_some()
-            || req.email.is_some()
-            || req.role.is_some()
-            || req.active.is_some();
-        if !has_fields { return self.find_user_by_id(id).await; }
+        let has_fields = pw.is_some() || req.full_name.is_some() || req.email.is_some() || req.role.is_some() || req.active.is_some();
+        if !has_fields {
+            return self.find_user_by_id(id).await;
+        }
 
         macro_rules! build_update {
             ($p:expr, $ph:expr) => {{
                 let mut sets: Vec<&str> = Vec::new();
-                if pw.is_some() { sets.push(concat!("password = ", $ph)); }
-                if req.full_name.is_some() { sets.push(concat!("full_name = ", $ph)); }
-                if req.email.is_some() { sets.push(concat!("email = ", $ph)); }
-                if req.role.is_some() { sets.push(concat!("role = ", $ph)); }
-                if req.active.is_some() { sets.push(concat!("active = ", $ph)); }
+                if pw.is_some() {
+                    sets.push(concat!("password = ", $ph));
+                }
+                if req.full_name.is_some() {
+                    sets.push(concat!("full_name = ", $ph));
+                }
+                if req.email.is_some() {
+                    sets.push(concat!("email = ", $ph));
+                }
+                if req.role.is_some() {
+                    sets.push(concat!("role = ", $ph));
+                }
+                if req.active.is_some() {
+                    sets.push(concat!("active = ", $ph));
+                }
                 let sql = format!("UPDATE users SET {} WHERE id = {}", sets.join(", "), $ph);
                 let mut q = sqlx::query(AssertSqlSafe(sql));
-                if let Some(ref v) = pw { q = q.bind(v.as_str()); }
-                if let Some(ref v) = req.full_name { q = q.bind(v.as_str()); }
-                if let Some(ref v) = req.email { q = q.bind(v.as_str()); }
-                if let Some(ref v) = req.role { q = q.bind(v.as_str()); }
-                if let Some(v) = req.active { q = q.bind(if v { 1i32 } else { 0i32 }); }
+                if let Some(ref v) = pw {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(ref v) = req.full_name {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(ref v) = req.email {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(ref v) = req.role {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(v) = req.active {
+                    q = q.bind(if v { 1i32 } else { 0i32 });
+                }
                 q.bind(id).execute($p).await?;
             }};
         }
 
         match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-            Self::Sqlite(p) => { build_update!(p, "?"); }
+            Self::NoDb => {
+                return Err(sqlx::Error::Configuration("Database not available".into()));
+            }
+            Self::Sqlite(p) => {
+                build_update!(p, "?");
+            }
             Self::Postgres(p) => {
                 let mut sets: Vec<String> = Vec::new();
                 let mut idx = 0u32;
-                if pw.is_some() { idx += 1; sets.push(format!("password = ${}", idx)); }
-                if req.full_name.is_some() { idx += 1; sets.push(format!("full_name = ${}", idx)); }
-                if req.email.is_some() { idx += 1; sets.push(format!("email = ${}", idx)); }
-                if req.role.is_some() { idx += 1; sets.push(format!("role = ${}", idx)); }
-                if req.active.is_some() { idx += 1; sets.push(format!("active = ${}", idx)); }
+                if pw.is_some() {
+                    idx += 1;
+                    sets.push(format!("password = ${}", idx));
+                }
+                if req.full_name.is_some() {
+                    idx += 1;
+                    sets.push(format!("full_name = ${}", idx));
+                }
+                if req.email.is_some() {
+                    idx += 1;
+                    sets.push(format!("email = ${}", idx));
+                }
+                if req.role.is_some() {
+                    idx += 1;
+                    sets.push(format!("role = ${}", idx));
+                }
+                if req.active.is_some() {
+                    idx += 1;
+                    sets.push(format!("active = ${}", idx));
+                }
                 idx += 1;
                 let sql = format!("UPDATE users SET {} WHERE id = ${}", sets.join(", "), idx);
                 let mut q = sqlx::query(AssertSqlSafe(sql));
-                if let Some(ref v) = pw { q = q.bind(v.as_str()); }
-                if let Some(ref v) = req.full_name { q = q.bind(v.as_str()); }
-                if let Some(ref v) = req.email { q = q.bind(v.as_str()); }
-                if let Some(ref v) = req.role { q = q.bind(v.as_str()); }
-                if let Some(v) = req.active { q = q.bind(v); }
+                if let Some(ref v) = pw {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(ref v) = req.full_name {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(ref v) = req.email {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(ref v) = req.role {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(v) = req.active {
+                    q = q.bind(v);
+                }
                 q.bind(id).execute(p).await?;
             }
-            Self::Mysql(p) => { build_update!(p, "?"); }
+            Self::Mysql(p) => {
+                build_update!(p, "?");
+            }
             Self::Mssql(db) => {
                 let mut sets: Vec<String> = Vec::new();
                 let mut idx = 0u32;
-                if pw.is_some() { idx += 1; sets.push(format!("password = @P{}", idx)); }
-                if req.full_name.is_some() { idx += 1; sets.push(format!("full_name = @P{}", idx)); }
-                if req.email.is_some() { idx += 1; sets.push(format!("email = @P{}", idx)); }
-                if req.role.is_some() { idx += 1; sets.push(format!("role = @P{}", idx)); }
-                if req.active.is_some() { idx += 1; sets.push(format!("active = @P{}", idx)); }
+                if pw.is_some() {
+                    idx += 1;
+                    sets.push(format!("password = @P{}", idx));
+                }
+                if req.full_name.is_some() {
+                    idx += 1;
+                    sets.push(format!("full_name = @P{}", idx));
+                }
+                if req.email.is_some() {
+                    idx += 1;
+                    sets.push(format!("email = @P{}", idx));
+                }
+                if req.role.is_some() {
+                    idx += 1;
+                    sets.push(format!("role = @P{}", idx));
+                }
+                if req.active.is_some() {
+                    idx += 1;
+                    sets.push(format!("active = @P{}", idx));
+                }
                 idx += 1;
                 let sql = format!("UPDATE users SET {} WHERE id = @P{}", sets.join(", "), idx);
                 let pw_str: &str = pw.as_deref().unwrap_or("");
@@ -1063,11 +1217,21 @@ impl DbPool {
                 let role_str: &str = req.role.as_deref().unwrap_or("");
                 let active_val: Option<i64> = req.active.map(|v| if v { 1i64 } else { 0i64 });
                 let mut params: Vec<&dyn tiberius::ToSql> = Vec::new();
-                if pw.is_some() { params.push(&pw_str as &dyn tiberius::ToSql); }
-                if req.full_name.is_some() { params.push(&fn_str as &dyn tiberius::ToSql); }
-                if req.email.is_some() { params.push(&email_str as &dyn tiberius::ToSql); }
-                if req.role.is_some() { params.push(&role_str as &dyn tiberius::ToSql); }
-                if let Some(ref v) = active_val { params.push(v as &dyn tiberius::ToSql); }
+                if pw.is_some() {
+                    params.push(&pw_str as &dyn tiberius::ToSql);
+                }
+                if req.full_name.is_some() {
+                    params.push(&fn_str as &dyn tiberius::ToSql);
+                }
+                if req.email.is_some() {
+                    params.push(&email_str as &dyn tiberius::ToSql);
+                }
+                if req.role.is_some() {
+                    params.push(&role_str as &dyn tiberius::ToSql);
+                }
+                if let Some(ref v) = active_val {
+                    params.push(v as &dyn tiberius::ToSql);
+                }
                 params.push(&id as &dyn tiberius::ToSql);
                 db.execute(&sql, &params).await?;
             }
@@ -1077,8 +1241,10 @@ impl DbPool {
 
     pub async fn delete_user(&self, id: i64) -> Result<bool, sqlx::Error> {
         let affected = match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-                Self::Sqlite(p) => {
+            Self::NoDb => {
+                return Err(sqlx::Error::Configuration("Database not available".into()));
+            }
+            Self::Sqlite(p) => {
                 let r = sqlx::query("DELETE FROM users WHERE id = ?").bind(id).execute(p).await?;
                 r.rows_affected()
             }
@@ -1097,8 +1263,8 @@ impl DbPool {
 
     pub async fn count_users(&self) -> Result<i64, sqlx::Error> {
         match self {
-            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
-                Self::Sqlite(p) => sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(p).await,
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(p).await,
             Self::Postgres(p) => sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(p).await,
             Self::Mysql(p) => sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(p).await,
             Self::Mssql(db) => db.query_scalar::<i32>("SELECT COUNT(*) FROM users", &[]).await.map(|v| v as i64),
@@ -1110,25 +1276,55 @@ impl DbPool {
         let offset = (page - 1).max(0) * per_page;
         let count_total = if let Some(s) = search {
             match self {
-                Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-                Self::Sqlite(p) => sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM patients WHERE patient_id_str LIKE ?").bind(format!("%{}%", s)).fetch_one(p).await?,
-                Self::Postgres(p) => sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM patients WHERE patient_id_str ILIKE $1").bind(format!("%{}%", s)).fetch_one(p).await?,
-                Self::Mysql(p) => sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM patients WHERE patient_id_str LIKE ?").bind(format!("%{}%", s)).fetch_one(p).await?,
-                Self::Mssql(db) => db.query_scalar::<i32>("SELECT COUNT(*) FROM patients WHERE patient_id_str LIKE @P1", tp!(format!("%{}%", s))).await.map(|v| v as i64)?,
+                Self::NoDb => {
+                    return Err(sqlx::Error::Configuration("Database not available".into()));
+                }
+                Self::Sqlite(p) => {
+                    sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM patients WHERE patient_id_str LIKE ?")
+                        .bind(format!("%{}%", s))
+                        .fetch_one(p)
+                        .await?
+                }
+                Self::Postgres(p) => {
+                    sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM patients WHERE patient_id_str ILIKE $1")
+                        .bind(format!("%{}%", s))
+                        .fetch_one(p)
+                        .await?
+                }
+                Self::Mysql(p) => {
+                    sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM patients WHERE patient_id_str LIKE ?")
+                        .bind(format!("%{}%", s))
+                        .fetch_one(p)
+                        .await?
+                }
+                Self::Mssql(db) => db
+                    .query_scalar::<i32>(
+                        "SELECT COUNT(*) FROM patients WHERE patient_id_str LIKE @P1",
+                        tp!(format!("%{}%", s)),
+                    )
+                    .await
+                    .map(|v| v as i64)?,
             }
         } else {
             match self {
-                Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+                Self::NoDb => {
+                    return Err(sqlx::Error::Configuration("Database not available".into()));
+                }
                 Self::Sqlite(p) => sqlx::query_scalar("SELECT COUNT(*) FROM patients").fetch_one(p).await?,
                 Self::Postgres(p) => sqlx::query_scalar("SELECT COUNT(*) FROM patients").fetch_one(p).await?,
                 Self::Mysql(p) => sqlx::query_scalar("SELECT COUNT(*) FROM patients").fetch_one(p).await?,
-                Self::Mssql(db) => db.query_scalar::<i32>("SELECT COUNT(*) FROM patients", &[]).await.map(|v| v as i64)?,
+                Self::Mssql(db) => db
+                    .query_scalar::<i32>("SELECT COUNT(*) FROM patients", &[])
+                    .await
+                    .map(|v| v as i64)?,
             }
         };
 
         let data = match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-                Self::Sqlite(p) => {
+            Self::NoDb => {
+                return Err(sqlx::Error::Configuration("Database not available".into()));
+            }
+            Self::Sqlite(p) => {
                 if let Some(s) = search {
                     sqlx::query_as::<_, Patient>("SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p WHERE p.patient_id_str LIKE ? ORDER BY active_therapy_count DESC, p.id DESC LIMIT ? OFFSET ?")
                         .bind(format!("%{}%", s)).bind(per_page).bind(offset).fetch_all(p).await?
@@ -1159,15 +1355,27 @@ impl DbPool {
                 let sql = "SELECT p.*, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'active') as active_therapy_count, (SELECT COUNT(*) FROM therapies t WHERE t.patient_id = p.id AND t.status = 'completed') as completed_therapy_count FROM patients p";
                 if let Some(s) = search {
                     let like = format!("%{}%", s);
-                    let full_sql = format!("{} WHERE p.patient_id_str LIKE @P1 ORDER BY active_therapy_count DESC, p.id DESC OFFSET @P2 ROWS FETCH NEXT @P3 ROWS ONLY", sql);
+                    let full_sql = format!(
+                        "{} WHERE p.patient_id_str LIKE @P1 ORDER BY active_therapy_count DESC, p.id DESC OFFSET @P2 ROWS FETCH NEXT @P3 ROWS ONLY",
+                        sql
+                    );
                     db.query_all::<Patient>(&full_sql, tp!(like, offset, per_page)).await?
                 } else {
-                    let full_sql = format!("{} ORDER BY active_therapy_count DESC, p.id DESC OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY", sql);
+                    let full_sql = format!(
+                        "{} ORDER BY active_therapy_count DESC, p.id DESC OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY",
+                        sql
+                    );
                     db.query_all::<Patient>(&full_sql, tp!(offset, per_page)).await?
                 }
             }
         };
-        Ok(PaginatedResponse { total: count_total, page, per_page, total_pages: (count_total as f64 / per_page as f64).ceil() as i64, data })
+        Ok(PaginatedResponse {
+            total: count_total,
+            page,
+            per_page,
+            total_pages: (count_total as f64 / per_page as f64).ceil() as i64,
+            data,
+        })
     }
 
     pub async fn find_patient_by_id(&self, id: i64) -> Result<Option<Patient>, sqlx::Error> {
@@ -1181,14 +1389,39 @@ impl DbPool {
     }
 
     // --- Therapies ---
-    pub async fn list_therapies_by_patient_paginated(&self, patient_id: i64, page: i64, per_page: i64) -> Result<PaginatedResponse<TherapyWithMachine>, sqlx::Error> {
+    pub async fn list_therapies_by_patient_paginated(
+        &self,
+        patient_id: i64,
+        page: i64,
+        per_page: i64,
+    ) -> Result<PaginatedResponse<TherapyWithMachine>, sqlx::Error> {
         let offset = (page - 1).max(0) * per_page;
         let count_total: i64 = match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-            Self::Sqlite(p) => sqlx::query_scalar("SELECT COUNT(*) FROM therapies WHERE patient_id = ?").bind(patient_id).fetch_one(p).await?,
-            Self::Postgres(p) => sqlx::query_scalar("SELECT COUNT(*) FROM therapies WHERE patient_id = $1").bind(patient_id).fetch_one(p).await?,
-            Self::Mysql(p) => sqlx::query_scalar("SELECT COUNT(*) FROM therapies WHERE patient_id = ?").bind(patient_id).fetch_one(p).await?,
-            Self::Mssql(db) => db.query_scalar::<i32>("SELECT COUNT(*) FROM therapies WHERE patient_id = @P1", tp!(patient_id)).await.map(|v| v as i64)?,
+            Self::NoDb => {
+                return Err(sqlx::Error::Configuration("Database not available".into()));
+            }
+            Self::Sqlite(p) => {
+                sqlx::query_scalar("SELECT COUNT(*) FROM therapies WHERE patient_id = ?")
+                    .bind(patient_id)
+                    .fetch_one(p)
+                    .await?
+            }
+            Self::Postgres(p) => {
+                sqlx::query_scalar("SELECT COUNT(*) FROM therapies WHERE patient_id = $1")
+                    .bind(patient_id)
+                    .fetch_one(p)
+                    .await?
+            }
+            Self::Mysql(p) => {
+                sqlx::query_scalar("SELECT COUNT(*) FROM therapies WHERE patient_id = ?")
+                    .bind(patient_id)
+                    .fetch_one(p)
+                    .await?
+            }
+            Self::Mssql(db) => db
+                .query_scalar::<i32>("SELECT COUNT(*) FROM therapies WHERE patient_id = @P1", tp!(patient_id))
+                .await
+                .map(|v| v as i64)?,
         };
         let raw: Vec<TherapyRaw> = match self {
             Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
@@ -1210,31 +1443,40 @@ impl DbPool {
             ).await?,
         };
         let equivalences = self.load_equivalences().await.unwrap_or_default();
-        let therapies: Vec<TherapyWithMachine> = raw.into_iter().map(|r| {
-            let mut t = TherapyWithMachine::from(r.clone());
-            if let (Some(sig_id), Some(ref val)) = (r.therapy_type_signal_id, t.therapy_type.clone()) {
-                if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
-                    t.therapy_type = Some(display.to_string());
+        let therapies: Vec<TherapyWithMachine> = raw
+            .into_iter()
+            .map(|r| {
+                let mut t = TherapyWithMachine::from(r.clone());
+                if let (Some(sig_id), Some(ref val)) = (r.therapy_type_signal_id, t.therapy_type.clone()) {
+                    if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
+                        t.therapy_type = Some(display.to_string());
+                    }
                 }
-            }
-            if let (Some(sig_id), Some(ref val)) = (r.kit_signal_id, t.kit.clone()) {
-                if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
-                    t.kit = Some(display.to_string());
+                if let (Some(sig_id), Some(ref val)) = (r.kit_signal_id, t.kit.clone()) {
+                    if let Some(display) = lookup_equivalence(sig_id, &val, &equivalences) {
+                        t.kit = Some(display.to_string());
+                    }
                 }
-            }
-            if let (Some(sig_id), Some(ref val)) = (r.weight_initial_signal_id, t.weight_initial.clone()) {
-                if let Some(display) = lookup_equivalence(sig_id, val, &equivalences) {
-                    t.weight_initial = Some(display.to_string());
+                if let (Some(sig_id), Some(ref val)) = (r.weight_initial_signal_id, t.weight_initial.clone()) {
+                    if let Some(display) = lookup_equivalence(sig_id, val, &equivalences) {
+                        t.weight_initial = Some(display.to_string());
+                    }
                 }
-            }
-            if let (Some(sig_id), Some(ref val)) = (r.weight_final_signal_id, t.weight_final.clone()) {
-                if let Some(display) = lookup_equivalence(sig_id, val, &equivalences) {
-                    t.weight_final = Some(display.to_string());
+                if let (Some(sig_id), Some(ref val)) = (r.weight_final_signal_id, t.weight_final.clone()) {
+                    if let Some(display) = lookup_equivalence(sig_id, val, &equivalences) {
+                        t.weight_final = Some(display.to_string());
+                    }
                 }
-            }
-            t
-        }).collect();
-        Ok(PaginatedResponse { total: count_total, page, per_page, total_pages: (count_total as f64 / per_page as f64).ceil() as i64, data: therapies })
+                t
+            })
+            .collect();
+        Ok(PaginatedResponse {
+            total: count_total,
+            page,
+            per_page,
+            total_pages: (count_total as f64 / per_page as f64).ceil() as i64,
+            data: therapies,
+        })
     }
 
     pub async fn find_therapy_by_id(&self, therapy_id: i64) -> Result<Option<TherapyWithMachine>, sqlx::Error> {
@@ -1312,8 +1554,9 @@ impl DbPool {
                 comments_by_therapy.entry(c.therapy_id).or_default().push(c);
             }
         }
-        let therapies: Vec<ActiveTherapy> = raw.into_iter().map(|r| {
-            ActiveTherapy {
+        let therapies: Vec<ActiveTherapy> = raw
+            .into_iter()
+            .map(|r| ActiveTherapy {
                 therapy_id: r.therapy_id,
                 patient_id: r.patient_id,
                 patient_id_str: r.patient_id_str,
@@ -1330,8 +1573,8 @@ impl DbPool {
                 net_rem_flow: r.net_rem_flow,
                 fs_mid_flow: r.fs_mid_flow,
                 comments: comments_by_therapy.remove(&r.therapy_id).unwrap_or_default(),
-            }
-        }).collect();
+            })
+            .collect();
         Ok(therapies)
     }
 
@@ -1340,7 +1583,12 @@ impl DbPool {
         match self {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
             Self::Sqlite(p) => sqlx::query_as(sql).bind(therapy_id).fetch_all(p).await,
-            Self::Postgres(p) => sqlx::query_as(AssertSqlSafe(sql.replace('?', "$1"))).bind(therapy_id).fetch_all(p).await,
+            Self::Postgres(p) => {
+                sqlx::query_as(AssertSqlSafe(sql.replace('?', "$1")))
+                    .bind(therapy_id)
+                    .fetch_all(p)
+                    .await
+            }
             Self::Mysql(p) => sqlx::query_as(sql).bind(therapy_id).fetch_all(p).await,
             Self::Mssql(db) => db.query_all::<TherapyComment>(&sql.replace('?', "@P1"), tp!(therapy_id)).await,
         }
@@ -1350,41 +1598,65 @@ impl DbPool {
         if therapy_ids.is_empty() {
             return Ok(vec![]);
         }
-        let placeholders: Vec<String> = therapy_ids.iter().enumerate().map(|(i, _)| {
-            if matches!(self, Self::Postgres(_)) {
-                format!("${}", i + 1)
-            } else if matches!(self, Self::Mssql(_)) {
-                // For MSSQL we fetch individually below
-                String::new()
-            } else {
-                "?".to_string()
-            }
-        }).collect();
+        let placeholders: Vec<String> = therapy_ids
+            .iter()
+            .enumerate()
+            .map(|(i, _)| {
+                if matches!(self, Self::Postgres(_)) {
+                    format!("${}", i + 1)
+                } else if matches!(self, Self::Mssql(_)) {
+                    // For MSSQL we fetch individually below
+                    String::new()
+                } else {
+                    "?".to_string()
+                }
+            })
+            .collect();
         match self {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
             Self::Sqlite(p) => {
-                let sql = format!("SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE therapy_id IN ({}) AND deleted_at IS NULL ORDER BY created_at ASC", placeholders.join(","));
+                let sql = format!(
+                    "SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE therapy_id IN ({}) AND deleted_at IS NULL ORDER BY created_at ASC",
+                    placeholders.join(",")
+                );
                 let mut q = sqlx::query_as::<_, TherapyComment>(AssertSqlSafe(sql));
-                for &id in therapy_ids { q = q.bind(id); }
+                for &id in therapy_ids {
+                    q = q.bind(id);
+                }
                 q.fetch_all(p).await
             }
             Self::Postgres(p) => {
-                let sql = format!("SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE therapy_id IN ({}) AND deleted_at IS NULL ORDER BY created_at ASC", placeholders.join(","));
+                let sql = format!(
+                    "SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE therapy_id IN ({}) AND deleted_at IS NULL ORDER BY created_at ASC",
+                    placeholders.join(",")
+                );
                 let mut q = sqlx::query_as::<_, TherapyComment>(AssertSqlSafe(sql));
-                for &id in therapy_ids { q = q.bind(id); }
+                for &id in therapy_ids {
+                    q = q.bind(id);
+                }
                 q.fetch_all(p).await
             }
             Self::Mysql(p) => {
-                let sql = format!("SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE therapy_id IN ({}) AND deleted_at IS NULL ORDER BY created_at ASC", placeholders.join(","));
+                let sql = format!(
+                    "SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE therapy_id IN ({}) AND deleted_at IS NULL ORDER BY created_at ASC",
+                    placeholders.join(",")
+                );
                 let mut q = sqlx::query_as::<_, TherapyComment>(AssertSqlSafe(sql));
-                for &id in therapy_ids { q = q.bind(id); }
+                for &id in therapy_ids {
+                    q = q.bind(id);
+                }
                 q.fetch_all(p).await
             }
             Self::Mssql(db) => {
                 let ph: Vec<String> = therapy_ids.iter().enumerate().map(|(i, _)| format!("@P{}", i + 1)).collect();
-                let sql = format!("SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE therapy_id IN ({}) AND deleted_at IS NULL ORDER BY created_at ASC", ph.join(","));
+                let sql = format!(
+                    "SELECT id, therapy_id, author_name, comment, created_at, deleted_at, deletion_reason FROM therapy_comments WHERE therapy_id IN ({}) AND deleted_at IS NULL ORDER BY created_at ASC",
+                    ph.join(",")
+                );
                 let mut params: Vec<&dyn tiberius::ToSql> = Vec::new();
-                for id in therapy_ids { params.push(id as &dyn tiberius::ToSql); }
+                for id in therapy_ids {
+                    params.push(id as &dyn tiberius::ToSql);
+                }
                 db.query_all::<TherapyComment>(&sql, &params).await
             }
         }
@@ -1392,23 +1664,42 @@ impl DbPool {
 
     pub async fn create_therapy_comment(&self, therapy_id: i64, author_name: &str, comment: &str) -> Result<TherapyComment, sqlx::Error> {
         let insert_sql = match self {
-            Self::Mssql(_) => "INSERT INTO therapy_comments (therapy_id, author_name, comment) OUTPUT INSERTED.* VALUES (@P1, @P2, @P3)".to_string(),
+            Self::Mssql(_) => {
+                "INSERT INTO therapy_comments (therapy_id, author_name, comment) OUTPUT INSERTED.* VALUES (@P1, @P2, @P3)".to_string()
+            }
             _ => "INSERT INTO therapy_comments (therapy_id, author_name, comment) VALUES (?, ?, ?)".to_string(),
         };
         let last_id = match self {
             Self::NoDb => return Err(sqlx::Error::Configuration("Database not available".into())),
-            Self::Sqlite(p) => {
-                sqlx::query(AssertSqlSafe(insert_sql)).bind(therapy_id).bind(author_name).bind(comment).execute(p).await?.last_insert_rowid()
-            }
+            Self::Sqlite(p) => sqlx::query(AssertSqlSafe(insert_sql))
+                .bind(therapy_id)
+                .bind(author_name)
+                .bind(comment)
+                .execute(p)
+                .await?
+                .last_insert_rowid(),
             Self::Postgres(p) => {
-                sqlx::query_scalar::<_, i64>("INSERT INTO therapy_comments (therapy_id, author_name, comment) VALUES ($1, $2, $3) RETURNING id")
-                    .bind(therapy_id).bind(author_name).bind(comment).fetch_one(p).await?
+                sqlx::query_scalar::<_, i64>(
+                    "INSERT INTO therapy_comments (therapy_id, author_name, comment) VALUES ($1, $2, $3) RETURNING id",
+                )
+                .bind(therapy_id)
+                .bind(author_name)
+                .bind(comment)
+                .fetch_one(p)
+                .await?
             }
-            Self::Mysql(p) => {
-                sqlx::query(AssertSqlSafe(insert_sql)).bind(therapy_id).bind(author_name).bind(comment).execute(p).await?.last_insert_id() as i64
-            }
+            Self::Mysql(p) => sqlx::query(AssertSqlSafe(insert_sql))
+                .bind(therapy_id)
+                .bind(author_name)
+                .bind(comment)
+                .execute(p)
+                .await?
+                .last_insert_id() as i64,
             Self::Mssql(db) => {
-                return db.query_one::<TherapyComment>(&insert_sql, tp!(therapy_id, author_name, comment)).await?.ok_or_else(|| sqlx::Error::Protocol("No comment returned".into()));
+                return db
+                    .query_one::<TherapyComment>(&insert_sql, tp!(therapy_id, author_name, comment))
+                    .await?
+                    .ok_or_else(|| sqlx::Error::Protocol("No comment returned".into()));
             }
         };
         self.find_therapy_comment_by_id(last_id).await
@@ -1421,7 +1712,10 @@ impl DbPool {
             Self::Sqlite(p) => sqlx::query_as(sql).bind(id).fetch_one(p).await,
             Self::Postgres(p) => sqlx::query_as(AssertSqlSafe(sql.replace('?', "$1"))).bind(id).fetch_one(p).await,
             Self::Mysql(p) => sqlx::query_as(sql).bind(id).fetch_one(p).await,
-            Self::Mssql(db) => db.query_one::<TherapyComment>(&sql.replace('?', "@P1"), tp!(id)).await?.ok_or_else(|| sqlx::Error::Protocol("Comment not found".into())),
+            Self::Mssql(db) => db
+                .query_one::<TherapyComment>(&sql.replace('?', "@P1"), tp!(id))
+                .await?
+                .ok_or_else(|| sqlx::Error::Protocol("Comment not found".into())),
         }
     }
 
@@ -1429,17 +1723,45 @@ impl DbPool {
         match self {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
             Self::Sqlite(p) => sqlx::query("UPDATE therapy_comments SET deleted_at = CURRENT_TIMESTAMP, deletion_reason = ? WHERE id = ?")
-                .bind(deletion_reason).bind(comment_id).execute(p).await.map(|_| ()),
-            Self::Postgres(p) => sqlx::query("UPDATE therapy_comments SET deleted_at = CURRENT_TIMESTAMP, deletion_reason = $1 WHERE id = $2")
-                .bind(deletion_reason).bind(comment_id).execute(p).await.map(|_| ()),
+                .bind(deletion_reason)
+                .bind(comment_id)
+                .execute(p)
+                .await
+                .map(|_| ()),
+            Self::Postgres(p) => {
+                sqlx::query("UPDATE therapy_comments SET deleted_at = CURRENT_TIMESTAMP, deletion_reason = $1 WHERE id = $2")
+                    .bind(deletion_reason)
+                    .bind(comment_id)
+                    .execute(p)
+                    .await
+                    .map(|_| ())
+            }
             Self::Mysql(p) => sqlx::query("UPDATE therapy_comments SET deleted_at = CURRENT_TIMESTAMP, deletion_reason = ? WHERE id = ?")
-                .bind(deletion_reason).bind(comment_id).execute(p).await.map(|_| ()),
-            Self::Mssql(db) => db.execute("UPDATE therapy_comments SET deleted_at = CURRENT_TIMESTAMP, deletion_reason = @P1 WHERE id = @P2", tp!(deletion_reason, comment_id)).await.map(|_| ()),
+                .bind(deletion_reason)
+                .bind(comment_id)
+                .execute(p)
+                .await
+                .map(|_| ()),
+            Self::Mssql(db) => db
+                .execute(
+                    "UPDATE therapy_comments SET deleted_at = CURRENT_TIMESTAMP, deletion_reason = @P1 WHERE id = @P2",
+                    tp!(deletion_reason, comment_id),
+                )
+                .await
+                .map(|_| ()),
         }
     }
 
     // --- Telemetry ---
-    pub async fn list_telemetry(&self, patient_id: i64, page: i64, per_page: i64, signal_ids: Option<&[i64]>, date_from: Option<&str>, date_to: Option<&str>) -> Result<PaginatedResponse<TelemetryReading>, sqlx::Error> {
+    pub async fn list_telemetry(
+        &self,
+        patient_id: i64,
+        page: i64,
+        per_page: i64,
+        signal_ids: Option<&[i64]>,
+        date_from: Option<&str>,
+        date_to: Option<&str>,
+    ) -> Result<PaginatedResponse<TelemetryReading>, sqlx::Error> {
         let offset = (page - 1).max(0) * per_page;
 
         let mut extra_where = String::new();
@@ -1448,25 +1770,42 @@ impl DbPool {
             let ph: Vec<&str> = vec!["?"; sig_count];
             extra_where = format!(" AND te.signal_id IN ({})", ph.join(", "));
         }
-        if date_from.is_some() { extra_where.push_str(" AND te.timestamp >= ?"); }
-        if date_to.is_some() { extra_where.push_str(" AND te.timestamp <= ?"); }
+        if date_from.is_some() {
+            extra_where.push_str(" AND te.timestamp >= ?");
+        }
+        if date_to.is_some() {
+            extra_where.push_str(" AND te.timestamp <= ?");
+        }
 
         let where_ext = &extra_where;
 
         macro_rules! bind_extras {
             ($q:expr, $ids:expr, $from:expr, $to:expr) => {{
                 let mut q = $q;
-                if let Some(ids) = $ids { for id in ids { q = q.bind(id); } }
-                if let Some(from) = $from { q = q.bind(from); }
-                if let Some(to) = $to { q = q.bind(to); }
+                if let Some(ids) = $ids {
+                    for id in ids {
+                        q = q.bind(id);
+                    }
+                }
+                if let Some(from) = $from {
+                    q = q.bind(from);
+                }
+                if let Some(to) = $to {
+                    q = q.bind(to);
+                }
                 q
             }};
         }
 
         let total: i64 = match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => {
+                return Err(sqlx::Error::Configuration("Database not available".into()));
+            }
             Self::Sqlite(p) => {
-                let sql = format!("SELECT COUNT(*) FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = ?{}", where_ext);
+                let sql = format!(
+                    "SELECT COUNT(*) FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = ?{}",
+                    where_ext
+                );
                 let mut q = sqlx::query_scalar::<_, i64>(AssertSqlSafe(sql)).bind(patient_id);
                 q = bind_extras!(q, signal_ids, date_from, date_to);
                 q.fetch_one(p).await?
@@ -1478,15 +1817,20 @@ impl DbPool {
                     pg_where = pg_where.replacen('?', &format!("${}", ph_idx), 1);
                     ph_idx += 1;
                 }
-                let sql = format!("SELECT COUNT(*) FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = $1{}", pg_where);
+                let sql = format!(
+                    "SELECT COUNT(*) FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = $1{}",
+                    pg_where
+                );
                 let mut q = sqlx::query_scalar::<_, i64>(AssertSqlSafe(sql)).bind(patient_id);
                 q = bind_extras!(q, signal_ids, date_from, date_to);
                 q.fetch_one(p).await?
             }
             Self::Mysql(p) => {
-                let mut q = sqlx::query_scalar::<_, i64>(
-                    AssertSqlSafe(format!("SELECT COUNT(*) FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = ?{}", where_ext))
-                ).bind(patient_id);
+                let mut q = sqlx::query_scalar::<_, i64>(AssertSqlSafe(format!(
+                    "SELECT COUNT(*) FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = ?{}",
+                    where_ext
+                )))
+                .bind(patient_id);
                 q = bind_extras!(q, signal_ids, date_from, date_to);
                 q.fetch_one(p).await?
             }
@@ -1497,22 +1841,36 @@ impl DbPool {
                     ms_where = ms_where.replacen('?', &format!("@P{}", ph_idx), 1);
                     ph_idx += 1;
                 }
-                let sql = format!("SELECT COUNT(*) FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = @P1{}", ms_where);
+                let sql = format!(
+                    "SELECT COUNT(*) FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = @P1{}",
+                    ms_where
+                );
                 let signal_ids_local: &[i64] = signal_ids.unwrap_or(&[]);
                 let date_from_str: &str = date_from.unwrap_or("");
                 let date_to_str: &str = date_to.unwrap_or("");
                 let mut params: Vec<&dyn tiberius::ToSql> = vec![&patient_id];
-                for id in signal_ids_local { params.push(id as &dyn tiberius::ToSql); }
-                if date_from.is_some() { params.push(&date_from_str as &dyn tiberius::ToSql); }
-                if date_to.is_some() { params.push(&date_to_str as &dyn tiberius::ToSql); }
+                for id in signal_ids_local {
+                    params.push(id as &dyn tiberius::ToSql);
+                }
+                if date_from.is_some() {
+                    params.push(&date_from_str as &dyn tiberius::ToSql);
+                }
+                if date_to.is_some() {
+                    params.push(&date_to_str as &dyn tiberius::ToSql);
+                }
                 db.query_scalar::<i32>(&sql, &params).await.map(|v| v as i64)?
             }
         };
 
         let data: Vec<TelemetryReading> = match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => {
+                return Err(sqlx::Error::Configuration("Database not available".into()));
+            }
             Self::Sqlite(p) => {
-                let sql = format!("SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = ?{} ORDER BY te.timestamp DESC LIMIT ? OFFSET ?", where_ext);
+                let sql = format!(
+                    "SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = ?{} ORDER BY te.timestamp DESC LIMIT ? OFFSET ?",
+                    where_ext
+                );
                 let mut q = sqlx::query_as::<_, TelemetryReading>(AssertSqlSafe(sql)).bind(patient_id);
                 q = bind_extras!(q, signal_ids, date_from, date_to);
                 q.bind(per_page).bind(offset).fetch_all(p).await?
@@ -1526,13 +1884,19 @@ impl DbPool {
                 }
                 let limit_ph = ph_idx;
                 let offset_ph = ph_idx + 1;
-                let sql = format!("SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = $1{} ORDER BY te.timestamp DESC LIMIT ${} OFFSET ${}", pg_where, limit_ph, offset_ph);
+                let sql = format!(
+                    "SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = $1{} ORDER BY te.timestamp DESC LIMIT ${} OFFSET ${}",
+                    pg_where, limit_ph, offset_ph
+                );
                 let mut q = sqlx::query_as::<_, TelemetryReading>(AssertSqlSafe(sql)).bind(patient_id);
                 q = bind_extras!(q, signal_ids, date_from, date_to);
                 q.bind(per_page as i32).bind(offset as i32).fetch_all(p).await?
             }
             Self::Mysql(p) => {
-                let sql = format!("SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = ?{} ORDER BY te.timestamp DESC LIMIT ? OFFSET ?", where_ext);
+                let sql = format!(
+                    "SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = ?{} ORDER BY te.timestamp DESC LIMIT ? OFFSET ?",
+                    where_ext
+                );
                 let mut q = sqlx::query_as::<_, TelemetryReading>(AssertSqlSafe(sql)).bind(patient_id);
                 q = bind_extras!(q, signal_ids, date_from, date_to);
                 q.bind(per_page).bind(offset).fetch_all(p).await?
@@ -1546,21 +1910,36 @@ impl DbPool {
                 }
                 let offset_ph = ph_idx;
                 let limit_ph = ph_idx + 1;
-                let sql = format!("SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = @P1{} ORDER BY te.timestamp DESC OFFSET @P{} ROWS FETCH NEXT @P{} ROWS ONLY", ms_where, offset_ph, limit_ph);
+                let sql = format!(
+                    "SELECT te.*, COALESCE(s.display_name, s.internal_name) AS signal_name FROM telemetry te JOIN therapies t ON te.therapy_id = t.id LEFT JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = @P1{} ORDER BY te.timestamp DESC OFFSET @P{} ROWS FETCH NEXT @P{} ROWS ONLY",
+                    ms_where, offset_ph, limit_ph
+                );
                 let signal_ids_local: &[i64] = signal_ids.unwrap_or(&[]);
                 let date_from_str: &str = date_from.unwrap_or("");
                 let date_to_str: &str = date_to.unwrap_or("");
                 let mut params: Vec<&dyn tiberius::ToSql> = vec![&patient_id as &dyn tiberius::ToSql];
-                for id in signal_ids_local { params.push(id as &dyn tiberius::ToSql); }
-                if date_from.is_some() { params.push(&date_from_str as &dyn tiberius::ToSql); }
-                if date_to.is_some() { params.push(&date_to_str as &dyn tiberius::ToSql); }
+                for id in signal_ids_local {
+                    params.push(id as &dyn tiberius::ToSql);
+                }
+                if date_from.is_some() {
+                    params.push(&date_from_str as &dyn tiberius::ToSql);
+                }
+                if date_to.is_some() {
+                    params.push(&date_to_str as &dyn tiberius::ToSql);
+                }
                 params.push(&offset as &dyn tiberius::ToSql);
                 params.push(&per_page as &dyn tiberius::ToSql);
                 db.query_all::<TelemetryReading>(&sql, &params).await?
             }
         };
 
-        Ok(PaginatedResponse { total, page, per_page, total_pages: (total as f64 / per_page as f64).ceil() as i64, data })
+        Ok(PaginatedResponse {
+            total,
+            page,
+            per_page,
+            total_pages: (total as f64 / per_page as f64).ceil() as i64,
+            data,
+        })
     }
 
     // --- Active Device ---
@@ -1593,8 +1972,10 @@ impl DbPool {
     pub async fn list_machine_ips(&self) -> Result<Vec<MachineIpWithSerial>, sqlx::Error> {
         let sql = "SELECT mi.*, m.serial_number FROM machine_ips mi LEFT JOIN machines m ON mi.machine_id = m.id ORDER BY mi.id DESC";
         let raw: Vec<MachineIpWithSerialRaw> = match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-                Self::Sqlite(p) => sqlx::query_as(sql).fetch_all(p).await?,
+            Self::NoDb => {
+                return Err(sqlx::Error::Configuration("Database not available".into()));
+            }
+            Self::Sqlite(p) => sqlx::query_as(sql).fetch_all(p).await?,
             Self::Postgres(p) => sqlx::query_as(sql).fetch_all(p).await?,
             Self::Mysql(p) => sqlx::query_as(sql).fetch_all(p).await?,
             Self::Mssql(db) => db.query_all::<MachineIpWithSerialRaw>(sql, &[]).await?,
@@ -1604,119 +1985,233 @@ impl DbPool {
 
     pub async fn create_machine_ip(&self, req: &CreateMachineIpRequest) -> Result<MachineIp, sqlx::Error> {
         match self {
-            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
-                Self::Sqlite(p) => {
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => {
                 sqlx::query_as::<_, MachineIp>(
-                    "INSERT INTO machine_ips (machine_id, ip_address, port, label) VALUES (?, ?, ?, ?) RETURNING *"
-                ).bind(req.machine_id).bind(&req.ip_address).bind(req.port).bind(&req.label)
-                .fetch_one(p).await
+                    "INSERT INTO machine_ips (machine_id, ip_address, port, label) VALUES (?, ?, ?, ?) RETURNING *",
+                )
+                .bind(req.machine_id)
+                .bind(&req.ip_address)
+                .bind(req.port)
+                .bind(&req.label)
+                .fetch_one(p)
+                .await
             }
             Self::Postgres(p) => {
                 sqlx::query_as::<_, MachineIp>(
-                    "INSERT INTO machine_ips (machine_id, ip_address, port, label) VALUES ($1, $2, $3, $4) RETURNING *"
-                ).bind(req.machine_id).bind(&req.ip_address).bind(req.port).bind(&req.label)
-                .fetch_one(p).await
+                    "INSERT INTO machine_ips (machine_id, ip_address, port, label) VALUES ($1, $2, $3, $4) RETURNING *",
+                )
+                .bind(req.machine_id)
+                .bind(&req.ip_address)
+                .bind(req.port)
+                .bind(&req.label)
+                .fetch_one(p)
+                .await
             }
             Self::Mysql(p) => {
                 sqlx::query("INSERT INTO machine_ips (machine_id, ip_address, port, label) VALUES (?, ?, ?, ?)")
-                    .bind(req.machine_id).bind(&req.ip_address).bind(req.port).bind(&req.label)
-                    .execute(p).await?;
+                    .bind(req.machine_id)
+                    .bind(&req.ip_address)
+                    .bind(req.port)
+                    .bind(&req.label)
+                    .execute(p)
+                    .await?;
                 let id: (i64,) = sqlx::query_as("SELECT LAST_INSERT_ID()").fetch_one(p).await?;
-                self.find_machine_ip_by_id(id.0).await?.ok_or_else(|| sqlx::Error::Configuration("Created machine IP not found after insert".into()))
+                self.find_machine_ip_by_id(id.0)
+                    .await?
+                    .ok_or_else(|| sqlx::Error::Configuration("Created machine IP not found after insert".into()))
             }
             Self::Mssql(db) => {
                 let port = req.port;
                 db.query_one::<MachineIp>(
                     "INSERT INTO machine_ips (machine_id, ip_address, port, label) OUTPUT INSERTED.* VALUES (@P1, @P2, @P3, @P4)",
-                    tp!(req.machine_id, req.ip_address, port, req.label)
-                ).await?.ok_or_else(|| sqlx::Error::Protocol("INSERT OUTPUT returned no rows".into()))
+                    tp!(req.machine_id, req.ip_address, port, req.label),
+                )
+                .await?
+                .ok_or_else(|| sqlx::Error::Protocol("INSERT OUTPUT returned no rows".into()))
             }
         }
     }
 
     pub async fn find_machine_ip_by_id(&self, id: i64) -> Result<Option<MachineIp>, sqlx::Error> {
         match self {
-            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
-                Self::Sqlite(p) => sqlx::query_as("SELECT * FROM machine_ips WHERE id = ?").bind(id).fetch_optional(p).await,
-            Self::Postgres(p) => sqlx::query_as("SELECT * FROM machine_ips WHERE id = $1").bind(id).fetch_optional(p).await,
-            Self::Mysql(p) => sqlx::query_as("SELECT * FROM machine_ips WHERE id = ?").bind(id).fetch_optional(p).await,
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => {
+                sqlx::query_as("SELECT * FROM machine_ips WHERE id = ?")
+                    .bind(id)
+                    .fetch_optional(p)
+                    .await
+            }
+            Self::Postgres(p) => {
+                sqlx::query_as("SELECT * FROM machine_ips WHERE id = $1")
+                    .bind(id)
+                    .fetch_optional(p)
+                    .await
+            }
+            Self::Mysql(p) => {
+                sqlx::query_as("SELECT * FROM machine_ips WHERE id = ?")
+                    .bind(id)
+                    .fetch_optional(p)
+                    .await
+            }
             Self::Mssql(db) => db.query_one::<MachineIp>("SELECT * FROM machine_ips WHERE id = @P1", tp!(id)).await,
         }
     }
 
     pub async fn update_machine_ip(&self, id: i64, req: &UpdateMachineIpRequest) -> Result<Option<MachineIp>, sqlx::Error> {
-        let has_fields = req.ip_address.is_some()
-            || req.port.is_some()
-            || req.label.is_some()
-            || req.is_active.is_some();
-        if !has_fields { return self.find_machine_ip_by_id(id).await; }
+        let has_fields = req.ip_address.is_some() || req.port.is_some() || req.label.is_some() || req.is_active.is_some();
+        if !has_fields {
+            return self.find_machine_ip_by_id(id).await;
+        }
 
         match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => {
+                return Err(sqlx::Error::Configuration("Database not available".into()));
+            }
             Self::Sqlite(p) => {
                 let mut sets: Vec<&str> = Vec::new();
-                if req.ip_address.is_some() { sets.push("ip_address = ?"); }
-                if req.port.is_some() { sets.push("port = ?"); }
-                if req.label.is_some() { sets.push("label = ?"); }
-                if req.is_active.is_some() { sets.push("is_active = ?"); }
+                if req.ip_address.is_some() {
+                    sets.push("ip_address = ?");
+                }
+                if req.port.is_some() {
+                    sets.push("port = ?");
+                }
+                if req.label.is_some() {
+                    sets.push("label = ?");
+                }
+                if req.is_active.is_some() {
+                    sets.push("is_active = ?");
+                }
                 sets.push("updated_at = CURRENT_TIMESTAMP");
                 let sql = format!("UPDATE machine_ips SET {} WHERE id = ?", sets.join(", "));
                 let mut q = sqlx::query(AssertSqlSafe(sql));
-                if let Some(ref v) = req.ip_address { q = q.bind(v.as_str()); }
-                if let Some(v) = req.port { q = q.bind(v); }
-                if let Some(ref v) = req.label { q = q.bind(v.as_str()); }
-                if let Some(v) = req.is_active { q = q.bind(if v { 1i32 } else { 0i32 }); }
+                if let Some(ref v) = req.ip_address {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(v) = req.port {
+                    q = q.bind(v);
+                }
+                if let Some(ref v) = req.label {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(v) = req.is_active {
+                    q = q.bind(if v { 1i32 } else { 0i32 });
+                }
                 q.bind(id).execute(p).await?;
             }
             Self::Postgres(p) => {
                 let mut sets: Vec<String> = Vec::new();
                 let mut idx = 0u32;
-                if req.ip_address.is_some() { idx += 1; sets.push(format!("ip_address = ${}", idx)); }
-                if req.port.is_some() { idx += 1; sets.push(format!("port = ${}", idx)); }
-                if req.label.is_some() { idx += 1; sets.push(format!("label = ${}", idx)); }
-                if req.is_active.is_some() { idx += 1; sets.push(format!("is_active = ${}", idx)); }
+                if req.ip_address.is_some() {
+                    idx += 1;
+                    sets.push(format!("ip_address = ${}", idx));
+                }
+                if req.port.is_some() {
+                    idx += 1;
+                    sets.push(format!("port = ${}", idx));
+                }
+                if req.label.is_some() {
+                    idx += 1;
+                    sets.push(format!("label = ${}", idx));
+                }
+                if req.is_active.is_some() {
+                    idx += 1;
+                    sets.push(format!("is_active = ${}", idx));
+                }
                 idx += 1;
-                let sql = format!("UPDATE machine_ips SET {}, updated_at = CURRENT_TIMESTAMP WHERE id = ${}", sets.join(", "), idx);
+                let sql = format!(
+                    "UPDATE machine_ips SET {}, updated_at = CURRENT_TIMESTAMP WHERE id = ${}",
+                    sets.join(", "),
+                    idx
+                );
                 let mut q = sqlx::query(AssertSqlSafe(sql));
-                if let Some(ref v) = req.ip_address { q = q.bind(v.as_str()); }
-                if let Some(v) = req.port { q = q.bind(v); }
-                if let Some(ref v) = req.label { q = q.bind(v.as_str()); }
-                if let Some(v) = req.is_active { q = q.bind(v); }
+                if let Some(ref v) = req.ip_address {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(v) = req.port {
+                    q = q.bind(v);
+                }
+                if let Some(ref v) = req.label {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(v) = req.is_active {
+                    q = q.bind(v);
+                }
                 q.bind(id).execute(p).await?;
             }
             Self::Mysql(p) => {
                 let mut sets: Vec<&str> = Vec::new();
-                if req.ip_address.is_some() { sets.push("ip_address = ?"); }
-                if req.port.is_some() { sets.push("port = ?"); }
-                if req.label.is_some() { sets.push("label = ?"); }
-                if req.is_active.is_some() { sets.push("is_active = ?"); }
+                if req.ip_address.is_some() {
+                    sets.push("ip_address = ?");
+                }
+                if req.port.is_some() {
+                    sets.push("port = ?");
+                }
+                if req.label.is_some() {
+                    sets.push("label = ?");
+                }
+                if req.is_active.is_some() {
+                    sets.push("is_active = ?");
+                }
                 sets.push("updated_at = CURRENT_TIMESTAMP");
                 let sql = format!("UPDATE machine_ips SET {} WHERE id = ?", sets.join(", "));
                 let mut q = sqlx::query(AssertSqlSafe(sql));
-                if let Some(ref v) = req.ip_address { q = q.bind(v.as_str()); }
-                if let Some(v) = req.port { q = q.bind(v); }
-                if let Some(ref v) = req.label { q = q.bind(v.as_str()); }
-                if let Some(v) = req.is_active { q = q.bind(if v { 1i32 } else { 0i32 }); }
+                if let Some(ref v) = req.ip_address {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(v) = req.port {
+                    q = q.bind(v);
+                }
+                if let Some(ref v) = req.label {
+                    q = q.bind(v.as_str());
+                }
+                if let Some(v) = req.is_active {
+                    q = q.bind(if v { 1i32 } else { 0i32 });
+                }
                 q.bind(id).execute(p).await?;
             }
             Self::Mssql(db) => {
                 let mut sets: Vec<String> = Vec::new();
                 let mut idx = 0u32;
-                if req.ip_address.is_some() { idx += 1; sets.push(format!("ip_address = @P{}", idx)); }
-                if req.port.is_some() { idx += 1; sets.push(format!("port = @P{}", idx)); }
-                if req.label.is_some() { idx += 1; sets.push(format!("label = @P{}", idx)); }
-                if req.is_active.is_some() { idx += 1; sets.push(format!("is_active = @P{}", idx)); }
+                if req.ip_address.is_some() {
+                    idx += 1;
+                    sets.push(format!("ip_address = @P{}", idx));
+                }
+                if req.port.is_some() {
+                    idx += 1;
+                    sets.push(format!("port = @P{}", idx));
+                }
+                if req.label.is_some() {
+                    idx += 1;
+                    sets.push(format!("label = @P{}", idx));
+                }
+                if req.is_active.is_some() {
+                    idx += 1;
+                    sets.push(format!("is_active = @P{}", idx));
+                }
                 idx += 1;
-                let sql = format!("UPDATE machine_ips SET {}, updated_at = CURRENT_TIMESTAMP WHERE id = @P{}", sets.join(", "), idx);
+                let sql = format!(
+                    "UPDATE machine_ips SET {}, updated_at = CURRENT_TIMESTAMP WHERE id = @P{}",
+                    sets.join(", "),
+                    idx
+                );
                 let ip_str: &str = req.ip_address.as_deref().unwrap_or("");
                 let label_str: &str = req.label.as_deref().unwrap_or("");
                 let port_val: Option<i64> = req.port.map(|p| p as i64);
                 let active_val: Option<i64> = req.is_active.map(|v| if v { 1i64 } else { 0i64 });
                 let mut params: Vec<&dyn tiberius::ToSql> = Vec::new();
-                if req.ip_address.is_some() { params.push(&ip_str as &dyn tiberius::ToSql); }
-                if let Some(ref v) = port_val { params.push(v as &dyn tiberius::ToSql); }
-                if req.label.is_some() { params.push(&label_str as &dyn tiberius::ToSql); }
-                if let Some(ref v) = active_val { params.push(v as &dyn tiberius::ToSql); }
+                if req.ip_address.is_some() {
+                    params.push(&ip_str as &dyn tiberius::ToSql);
+                }
+                if let Some(ref v) = port_val {
+                    params.push(v as &dyn tiberius::ToSql);
+                }
+                if req.label.is_some() {
+                    params.push(&label_str as &dyn tiberius::ToSql);
+                }
+                if let Some(ref v) = active_val {
+                    params.push(v as &dyn tiberius::ToSql);
+                }
                 params.push(&id as &dyn tiberius::ToSql);
                 db.execute(&sql, &params).await?;
             }
@@ -1726,8 +2221,10 @@ impl DbPool {
 
     pub async fn delete_machine_ip(&self, id: i64) -> Result<bool, sqlx::Error> {
         let affected = match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
-                Self::Sqlite(p) => {
+            Self::NoDb => {
+                return Err(sqlx::Error::Configuration("Database not available".into()));
+            }
+            Self::Sqlite(p) => {
                 let r = sqlx::query("DELETE FROM machine_ips WHERE id = ?").bind(id).execute(p).await?;
                 r.rows_affected()
             }
@@ -1739,21 +2236,31 @@ impl DbPool {
                 let r = sqlx::query("DELETE FROM machine_ips WHERE id = ?").bind(id).execute(p).await?;
                 r.rows_affected()
             }
-            Self::Mssql(db) => db.execute("DELETE FROM machine_ips WHERE id = @P1", tp!(id)).await?
+            Self::Mssql(db) => db.execute("DELETE FROM machine_ips WHERE id = @P1", tp!(id)).await?,
         };
         Ok(affected > 0)
     }
 
     // --- Dashboard ---
-    pub async fn patient_dashboard(&self, patient_id: i64, signal_ids: Option<&[i64]>, date_from: Option<&str>, date_to: Option<&str>) -> Result<PatientDashboard, sqlx::Error> {
+    pub async fn patient_dashboard(
+        &self,
+        patient_id: i64,
+        signal_ids: Option<&[i64]>,
+        date_from: Option<&str>,
+        date_to: Option<&str>,
+    ) -> Result<PatientDashboard, sqlx::Error> {
         let mut extra_where = String::new();
         let sig_count = signal_ids.map(|ids| ids.len()).unwrap_or(0);
         if sig_count > 0 {
             let ph: Vec<&str> = vec!["?"; sig_count];
             extra_where = format!(" AND te.signal_id IN ({})", ph.join(", "));
         }
-        if date_from.is_some() { extra_where.push_str(" AND te.timestamp >= ?"); }
-        if date_to.is_some() { extra_where.push_str(" AND te.timestamp <= ?"); }
+        if date_from.is_some() {
+            extra_where.push_str(" AND te.timestamp >= ?");
+        }
+        if date_to.is_some() {
+            extra_where.push_str(" AND te.timestamp <= ?");
+        }
 
         let agg_base = "SELECT te.signal_id, s.internal_name, s.display_name, s.unit, AVG(CAST(te.physical_value AS REAL)) as average, MIN(CAST(te.physical_value AS REAL)) as minimum, MAX(CAST(te.physical_value AS REAL)) as maximum, COUNT(*) as count FROM telemetry te JOIN therapies t ON te.therapy_id = t.id JOIN signals s ON te.signal_id = s.id WHERE t.patient_id = ? AND te.physical_value IS NOT NULL AND te.physical_value != ''";
         let batch_base = "SELECT te.signal_id, te.timestamp, te.physical_value FROM telemetry te JOIN therapies t ON te.therapy_id = t.id WHERE t.patient_id = ? AND te.physical_value IS NOT NULL AND te.physical_value != ''";
@@ -1763,15 +2270,25 @@ impl DbPool {
         macro_rules! bind_extras_dash {
             ($q:expr, $ids:expr, $from:expr, $to:expr) => {{
                 let mut q = $q;
-                if let Some(ids) = $ids { for id in ids { q = q.bind(id); } }
-                if let Some(from) = $from { q = q.bind(from); }
-                if let Some(to) = $to { q = q.bind(to); }
+                if let Some(ids) = $ids {
+                    for id in ids {
+                        q = q.bind(id);
+                    }
+                }
+                if let Some(from) = $from {
+                    q = q.bind(from);
+                }
+                if let Some(to) = $to {
+                    q = q.bind(to);
+                }
                 q
             }};
         }
 
         let raw_signals: Vec<DashboardSignalRaw> = match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => {
+                return Err(sqlx::Error::Configuration("Database not available".into()));
+            }
             Self::Sqlite(p) => {
                 let sql = format!("{}{}{}", agg_base, extra_where, order);
                 let mut q = sqlx::query_as(AssertSqlSafe(sql)).bind(patient_id);
@@ -1811,15 +2328,23 @@ impl DbPool {
                 let date_from_str: &str = date_from.unwrap_or("");
                 let date_to_str: &str = date_to.unwrap_or("");
                 let mut params: Vec<&dyn tiberius::ToSql> = vec![&patient_id as &dyn tiberius::ToSql];
-                for id in signal_ids_local { params.push(id as &dyn tiberius::ToSql); }
-                if date_from.is_some() { params.push(&date_from_str as &dyn tiberius::ToSql); }
-                if date_to.is_some() { params.push(&date_to_str as &dyn tiberius::ToSql); }
+                for id in signal_ids_local {
+                    params.push(id as &dyn tiberius::ToSql);
+                }
+                if date_from.is_some() {
+                    params.push(&date_from_str as &dyn tiberius::ToSql);
+                }
+                if date_to.is_some() {
+                    params.push(&date_to_str as &dyn tiberius::ToSql);
+                }
                 db.query_all::<DashboardSignalRaw>(&sql, &params).await?
             }
         };
 
         let all_values: Vec<DashboardValueWithSignal> = match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => {
+                return Err(sqlx::Error::Configuration("Database not available".into()));
+            }
             Self::Sqlite(p) => {
                 let sql = format!("{}{}{}", batch_base, extra_where, order_batch);
                 let mut q = sqlx::query_as(AssertSqlSafe(sql)).bind(patient_id);
@@ -1856,9 +2381,15 @@ impl DbPool {
                 let date_from_str: &str = date_from.unwrap_or("");
                 let date_to_str: &str = date_to.unwrap_or("");
                 let mut params: Vec<&dyn tiberius::ToSql> = vec![&patient_id as &dyn tiberius::ToSql];
-                for id in signal_ids_local { params.push(id as &dyn tiberius::ToSql); }
-                if date_from.is_some() { params.push(&date_from_str as &dyn tiberius::ToSql); }
-                if date_to.is_some() { params.push(&date_to_str as &dyn tiberius::ToSql); }
+                for id in signal_ids_local {
+                    params.push(id as &dyn tiberius::ToSql);
+                }
+                if date_from.is_some() {
+                    params.push(&date_from_str as &dyn tiberius::ToSql);
+                }
+                if date_to.is_some() {
+                    params.push(&date_to_str as &dyn tiberius::ToSql);
+                }
                 db.query_all::<DashboardValueWithSignal>(&sql, &params).await?
             }
         };
@@ -1866,18 +2397,27 @@ impl DbPool {
         let mut values_by_signal: HashMap<i64, Vec<DashboardValue>> = HashMap::new();
         for v in &all_values {
             if let Some(ts) = v.timestamp
-                && let Some(val) = v.physical_value.as_deref().and_then(|s| s.parse::<f64>().ok()) {
-                    values_by_signal.entry(v.signal_id).or_default().push(DashboardValue { timestamp: ts, value: val });
-                }
+                && let Some(val) = v.physical_value.as_deref().and_then(|s| s.parse::<f64>().ok())
+            {
+                values_by_signal
+                    .entry(v.signal_id)
+                    .or_default()
+                    .push(DashboardValue { timestamp: ts, value: val });
+            }
         }
         let mut signals = Vec::with_capacity(raw_signals.len());
         for sig in raw_signals {
             let values = values_by_signal.remove(&sig.signal_id).unwrap_or_default();
             signals.push(DashboardSignal {
-                signal_id: sig.signal_id, internal_name: sig.internal_name,
-                display_name: sig.display_name, unit: sig.unit,
-                average: sig.average, minimum: sig.minimum, maximum: sig.maximum,
-                count: sig.count, values,
+                signal_id: sig.signal_id,
+                internal_name: sig.internal_name,
+                display_name: sig.display_name,
+                unit: sig.unit,
+                average: sig.average,
+                minimum: sig.minimum,
+                maximum: sig.maximum,
+                count: sig.count,
+                values,
             });
         }
         Ok(PatientDashboard { signals })
@@ -1888,7 +2428,9 @@ impl DbPool {
         let batch_vals_sql = "SELECT te.signal_id, te.timestamp, te.physical_value FROM telemetry te WHERE te.therapy_id = ? AND te.physical_value IS NOT NULL AND te.physical_value != '' ORDER BY te.signal_id, te.timestamp ASC";
 
         let raw_signals: Vec<DashboardSignalRaw> = match self {
-            Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+            Self::NoDb => {
+                return Err(sqlx::Error::Configuration("Database not available".into()));
+            }
             Self::Sqlite(p) => sqlx::query_as(agg_sql).bind(therapy_id).fetch_all(p).await?,
             Self::Postgres(p) => {
                 let safe_cast = "AVG(CASE WHEN te.physical_value ~ '^[0-9]+(\\.[0-9]+)?$' THEN te.physical_value::double precision END) as average, MIN(CASE WHEN te.physical_value ~ '^[0-9]+(\\.[0-9]+)?$' THEN te.physical_value::double precision END) as minimum, MAX(CASE WHEN te.physical_value ~ '^[0-9]+(\\.[0-9]+)?$' THEN te.physical_value::double precision END) as maximum";
@@ -1897,7 +2439,9 @@ impl DbPool {
             }
             Self::Mysql(p) => sqlx::query_as(agg_sql).bind(therapy_id).fetch_all(p).await?,
             Self::Mssql(db) => {
-                let mssql_sql = agg_sql.replace('?', "@P1").replace("CAST(te.physical_value AS REAL)", "TRY_CAST(te.physical_value AS REAL)");
+                let mssql_sql = agg_sql
+                    .replace('?', "@P1")
+                    .replace("CAST(te.physical_value AS REAL)", "TRY_CAST(te.physical_value AS REAL)");
                 db.query_all::<DashboardSignalRaw>(&mssql_sql, tp!(therapy_id)).await?
             }
         };
@@ -1919,18 +2463,27 @@ impl DbPool {
         let mut values_by_signal: HashMap<i64, Vec<DashboardValue>> = HashMap::new();
         for v in &all_values {
             if let Some(ts) = v.timestamp
-                && let Some(val) = v.physical_value.as_deref().and_then(|s| s.parse::<f64>().ok()) {
-                    values_by_signal.entry(v.signal_id).or_default().push(DashboardValue { timestamp: ts, value: val });
-                }
+                && let Some(val) = v.physical_value.as_deref().and_then(|s| s.parse::<f64>().ok())
+            {
+                values_by_signal
+                    .entry(v.signal_id)
+                    .or_default()
+                    .push(DashboardValue { timestamp: ts, value: val });
+            }
         }
         let mut signals = Vec::with_capacity(raw_signals.len());
         for sig in raw_signals {
             let values = values_by_signal.remove(&sig.signal_id).unwrap_or_default();
             signals.push(DashboardSignal {
-                signal_id: sig.signal_id, internal_name: sig.internal_name,
-                display_name: sig.display_name, unit: sig.unit,
-                average: sig.average, minimum: sig.minimum, maximum: sig.maximum,
-                count: sig.count, values,
+                signal_id: sig.signal_id,
+                internal_name: sig.internal_name,
+                display_name: sig.display_name,
+                unit: sig.unit,
+                average: sig.average,
+                minimum: sig.minimum,
+                maximum: sig.maximum,
+                count: sig.count,
+                values,
             });
         }
         Ok(PatientDashboard { signals })
@@ -1948,9 +2501,24 @@ impl DbPool {
         };
         match self {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
-            Self::Sqlite(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
-            Self::Postgres(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
-            Self::Mysql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(patient_id).fetch_all(p).await,
+            Self::Sqlite(p) => {
+                sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql))
+                    .bind(patient_id)
+                    .fetch_all(p)
+                    .await
+            }
+            Self::Postgres(p) => {
+                sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql))
+                    .bind(patient_id)
+                    .fetch_all(p)
+                    .await
+            }
+            Self::Mysql(p) => {
+                sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql))
+                    .bind(patient_id)
+                    .fetch_all(p)
+                    .await
+            }
             Self::Mssql(db) => db.query_all::<TelemetryExportRow>(&limited_sql, tp!(patient_id)).await,
         }
     }
@@ -1966,9 +2534,24 @@ impl DbPool {
         };
         match self {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
-            Self::Sqlite(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
-            Self::Postgres(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
-            Self::Mysql(p) => sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql)).bind(therapy_id).fetch_all(p).await,
+            Self::Sqlite(p) => {
+                sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql))
+                    .bind(therapy_id)
+                    .fetch_all(p)
+                    .await
+            }
+            Self::Postgres(p) => {
+                sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql))
+                    .bind(therapy_id)
+                    .fetch_all(p)
+                    .await
+            }
+            Self::Mysql(p) => {
+                sqlx::query_as::<_, TelemetryExportRow>(AssertSqlSafe(limited_sql))
+                    .bind(therapy_id)
+                    .fetch_all(p)
+                    .await
+            }
             Self::Mssql(db) => db.query_all::<TelemetryExportRow>(&limited_sql, tp!(therapy_id)).await,
         }
     }
@@ -1976,10 +2559,25 @@ impl DbPool {
     pub async fn load_equivalences(&self) -> Result<Vec<AttributeEquivalence>, sqlx::Error> {
         match self {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
-            Self::Sqlite(p) => sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences").fetch_all(p).await,
-            Self::Postgres(p) => sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences").fetch_all(p).await,
-            Self::Mysql(p) => sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences").fetch_all(p).await,
-            Self::Mssql(db) => db.query_all::<AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences", &[]).await,
+            Self::Sqlite(p) => {
+                sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences")
+                    .fetch_all(p)
+                    .await
+            }
+            Self::Postgres(p) => {
+                sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences")
+                    .fetch_all(p)
+                    .await
+            }
+            Self::Mysql(p) => {
+                sqlx::query_as::<_, AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences")
+                    .fetch_all(p)
+                    .await
+            }
+            Self::Mssql(db) => {
+                db.query_all::<AttributeEquivalence>("SELECT signal_id, numeric_value, display_name FROM attribute_equivalences", &[])
+                    .await
+            }
         }
     }
 
@@ -2000,11 +2598,16 @@ impl DbPool {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
             Self::Sqlite(p) => {
                 if let Some((id,)) = sqlx::query_as::<_, (i64,)>("SELECT id FROM signals WHERE internal_name = ?")
-                    .bind(internal_name).fetch_optional(p).await? {
+                    .bind(internal_name)
+                    .fetch_optional(p)
+                    .await?
+                {
                     return Ok(id);
                 }
                 sqlx::query("INSERT INTO signals (internal_name) VALUES (?)")
-                    .bind(internal_name).execute(p).await?;
+                    .bind(internal_name)
+                    .execute(p)
+                    .await?;
                 let (id,): (i64,) = sqlx::query_as("SELECT last_insert_rowid()").fetch_one(p).await?;
                 Ok(id)
             }
@@ -2016,19 +2619,32 @@ impl DbPool {
             }
             Self::Mysql(p) => {
                 if let Some((id,)) = sqlx::query_as::<_, (i64,)>("SELECT id FROM signals WHERE internal_name = ?")
-                    .bind(internal_name).fetch_optional(p).await? {
+                    .bind(internal_name)
+                    .fetch_optional(p)
+                    .await?
+                {
                     return Ok(id);
                 }
                 sqlx::query("INSERT INTO signals (internal_name) VALUES (?)")
-                    .bind(internal_name).execute(p).await?;
+                    .bind(internal_name)
+                    .execute(p)
+                    .await?;
                 let (id,): (i64,) = sqlx::query_as("SELECT LAST_INSERT_ID()").fetch_one(p).await?;
                 Ok(id)
             }
             Self::Mssql(db) => {
-                if let Some(id) = db.query_scalar::<i64>("SELECT id FROM signals WHERE internal_name = @P1", tp!(internal_name)).await.ok() {
+                if let Some(id) = db
+                    .query_scalar::<i64>("SELECT id FROM signals WHERE internal_name = @P1", tp!(internal_name))
+                    .await
+                    .ok()
+                {
                     return Ok(id);
                 }
-                db.query_scalar::<i64>("INSERT INTO signals (internal_name) OUTPUT INSERTED.id VALUES (@P1)", tp!(internal_name)).await
+                db.query_scalar::<i64>(
+                    "INSERT INTO signals (internal_name) OUTPUT INSERTED.id VALUES (@P1)",
+                    tp!(internal_name),
+                )
+                .await
             }
         }
     }
@@ -2069,53 +2685,109 @@ impl DbPool {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
             Self::Sqlite(p) => {
                 sqlx::query("UPDATE attribute_equivalences SET display_name = ? WHERE signal_id = ? AND numeric_value = ?")
-                    .bind(display_name).bind(signal_id).bind(numeric_value).execute(p).await?;
+                    .bind(display_name)
+                    .bind(signal_id)
+                    .bind(numeric_value)
+                    .execute(p)
+                    .await?;
                 Ok(())
             }
             Self::Postgres(p) => {
                 sqlx::query("UPDATE attribute_equivalences SET display_name = $1 WHERE signal_id = $2 AND numeric_value = $3")
-                    .bind(display_name).bind(signal_id).bind(numeric_value).execute(p).await?;
+                    .bind(display_name)
+                    .bind(signal_id)
+                    .bind(numeric_value)
+                    .execute(p)
+                    .await?;
                 Ok(())
             }
             Self::Mysql(p) => {
                 sqlx::query("UPDATE attribute_equivalences SET display_name = ? WHERE signal_id = ? AND numeric_value = ?")
-                    .bind(display_name).bind(signal_id).bind(numeric_value).execute(p).await?;
+                    .bind(display_name)
+                    .bind(signal_id)
+                    .bind(numeric_value)
+                    .execute(p)
+                    .await?;
                 Ok(())
             }
             Self::Mssql(db) => {
-                db.execute("UPDATE attribute_equivalences SET display_name = @P1 WHERE signal_id = @P2 AND numeric_value = @P3", tp!(display_name, signal_id, numeric_value)).await?;
+                db.execute(
+                    "UPDATE attribute_equivalences SET display_name = @P1 WHERE signal_id = @P2 AND numeric_value = @P3",
+                    tp!(display_name, signal_id, numeric_value),
+                )
+                .await?;
                 Ok(())
             }
         }
     }
 
-    pub async fn delete_equivalence_with_log(&self, signal_id: i64, numeric_value: f64, deleted_by: &str, deletion_reason: &str) -> Result<(), sqlx::Error> {
+    pub async fn delete_equivalence_with_log(
+        &self,
+        signal_id: i64,
+        numeric_value: f64,
+        deleted_by: &str,
+        deletion_reason: &str,
+    ) -> Result<(), sqlx::Error> {
         match self {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
             Self::Sqlite(p) => {
-                sqlx::query("INSERT INTO equivalence_deletion_log (signal_id, numeric_value, deleted_by, deletion_reason) VALUES (?, ?, ?, ?)")
-                    .bind(signal_id).bind(numeric_value).bind(deleted_by).bind(deletion_reason).execute(p).await?;
+                sqlx::query(
+                    "INSERT INTO equivalence_deletion_log (signal_id, numeric_value, deleted_by, deletion_reason) VALUES (?, ?, ?, ?)",
+                )
+                .bind(signal_id)
+                .bind(numeric_value)
+                .bind(deleted_by)
+                .bind(deletion_reason)
+                .execute(p)
+                .await?;
                 sqlx::query("DELETE FROM attribute_equivalences WHERE signal_id = ? AND numeric_value = ?")
-                    .bind(signal_id).bind(numeric_value).execute(p).await?;
+                    .bind(signal_id)
+                    .bind(numeric_value)
+                    .execute(p)
+                    .await?;
                 Ok(())
             }
             Self::Postgres(p) => {
-                sqlx::query("INSERT INTO equivalence_deletion_log (signal_id, numeric_value, deleted_by, deletion_reason) VALUES ($1, $2, $3, $4)")
-                    .bind(signal_id).bind(numeric_value).bind(deleted_by).bind(deletion_reason).execute(p).await?;
+                sqlx::query(
+                    "INSERT INTO equivalence_deletion_log (signal_id, numeric_value, deleted_by, deletion_reason) VALUES ($1, $2, $3, $4)",
+                )
+                .bind(signal_id)
+                .bind(numeric_value)
+                .bind(deleted_by)
+                .bind(deletion_reason)
+                .execute(p)
+                .await?;
                 sqlx::query("DELETE FROM attribute_equivalences WHERE signal_id = $1 AND numeric_value = $2")
-                    .bind(signal_id).bind(numeric_value).execute(p).await?;
+                    .bind(signal_id)
+                    .bind(numeric_value)
+                    .execute(p)
+                    .await?;
                 Ok(())
             }
             Self::Mysql(p) => {
-                sqlx::query("INSERT INTO equivalence_deletion_log (signal_id, numeric_value, deleted_by, deletion_reason) VALUES (?, ?, ?, ?)")
-                    .bind(signal_id).bind(numeric_value).bind(deleted_by).bind(deletion_reason).execute(p).await?;
+                sqlx::query(
+                    "INSERT INTO equivalence_deletion_log (signal_id, numeric_value, deleted_by, deletion_reason) VALUES (?, ?, ?, ?)",
+                )
+                .bind(signal_id)
+                .bind(numeric_value)
+                .bind(deleted_by)
+                .bind(deletion_reason)
+                .execute(p)
+                .await?;
                 sqlx::query("DELETE FROM attribute_equivalences WHERE signal_id = ? AND numeric_value = ?")
-                    .bind(signal_id).bind(numeric_value).execute(p).await?;
+                    .bind(signal_id)
+                    .bind(numeric_value)
+                    .execute(p)
+                    .await?;
                 Ok(())
             }
             Self::Mssql(db) => {
                 db.execute("INSERT INTO equivalence_deletion_log (signal_id, numeric_value, deleted_by, deletion_reason) VALUES (@P1, @P2, @P3, @P4)", tp!(signal_id, numeric_value, deleted_by, deletion_reason)).await?;
-                db.execute("DELETE FROM attribute_equivalences WHERE signal_id = @P1 AND numeric_value = @P2", tp!(signal_id, numeric_value)).await?;
+                db.execute(
+                    "DELETE FROM attribute_equivalences WHERE signal_id = @P1 AND numeric_value = @P2",
+                    tp!(signal_id, numeric_value),
+                )
+                .await?;
                 Ok(())
             }
         }
@@ -2125,10 +2797,28 @@ impl DbPool {
     pub async fn list_signals(&self) -> Result<Vec<Signal>, sqlx::Error> {
         match self {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
-            Self::Sqlite(p) => sqlx::query_as::<_, Signal>("SELECT id, internal_name, display_name, unit FROM signals ORDER BY internal_name").fetch_all(p).await,
-            Self::Postgres(p) => sqlx::query_as::<_, Signal>("SELECT id, internal_name, display_name, unit FROM signals ORDER BY internal_name").fetch_all(p).await,
-            Self::Mysql(p) => sqlx::query_as::<_, Signal>("SELECT id, internal_name, display_name, unit FROM signals ORDER BY internal_name").fetch_all(p).await,
-            Self::Mssql(db) => db.query_all::<Signal>("SELECT id, internal_name, display_name, unit FROM signals ORDER BY internal_name", &[]).await,
+            Self::Sqlite(p) => {
+                sqlx::query_as::<_, Signal>("SELECT id, internal_name, display_name, unit FROM signals ORDER BY internal_name")
+                    .fetch_all(p)
+                    .await
+            }
+            Self::Postgres(p) => {
+                sqlx::query_as::<_, Signal>("SELECT id, internal_name, display_name, unit FROM signals ORDER BY internal_name")
+                    .fetch_all(p)
+                    .await
+            }
+            Self::Mysql(p) => {
+                sqlx::query_as::<_, Signal>("SELECT id, internal_name, display_name, unit FROM signals ORDER BY internal_name")
+                    .fetch_all(p)
+                    .await
+            }
+            Self::Mssql(db) => {
+                db.query_all::<Signal>(
+                    "SELECT id, internal_name, display_name, unit FROM signals ORDER BY internal_name",
+                    &[],
+                )
+                .await
+            }
         }
     }
 
@@ -2140,49 +2830,81 @@ impl DbPool {
         }
         let sql = {
             let mut sets: Vec<&str> = Vec::new();
-            if has_display { sets.push("display_name = ?"); }
-            if has_unit { sets.push("unit = ?"); }
+            if has_display {
+                sets.push("display_name = ?");
+            }
+            if has_unit {
+                sets.push("unit = ?");
+            }
             format!("UPDATE signals SET {} WHERE id = ?", sets.join(", "))
         };
         match self {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
             Self::Sqlite(p) => {
                 let mut q = sqlx::query(AssertSqlSafe(sql.clone()));
-                if let Some(v) = display_name { q = q.bind(v); }
-                if let Some(v) = unit { q = q.bind(v); }
+                if let Some(v) = display_name {
+                    q = q.bind(v);
+                }
+                if let Some(v) = unit {
+                    q = q.bind(v);
+                }
                 q.bind(id).execute(p).await?;
                 Ok(())
             }
             Self::Postgres(p) => {
                 let mut sets: Vec<String> = Vec::new();
                 let mut ph = 1u32;
-                if has_display { sets.push(format!("display_name = ${}", ph)); ph += 1; }
-                if has_unit { sets.push(format!("unit = ${}", ph)); ph += 1; }
+                if has_display {
+                    sets.push(format!("display_name = ${}", ph));
+                    ph += 1;
+                }
+                if has_unit {
+                    sets.push(format!("unit = ${}", ph));
+                    ph += 1;
+                }
                 let pg_sql = format!("UPDATE signals SET {} WHERE id = ${}", sets.join(", "), ph);
                 let mut q = sqlx::query(AssertSqlSafe(pg_sql));
-                if let Some(v) = display_name { q = q.bind(v); }
-                if let Some(v) = unit { q = q.bind(v); }
+                if let Some(v) = display_name {
+                    q = q.bind(v);
+                }
+                if let Some(v) = unit {
+                    q = q.bind(v);
+                }
                 q.bind(id).execute(p).await?;
                 Ok(())
             }
             Self::Mysql(p) => {
                 let mut q = sqlx::query(AssertSqlSafe(sql.clone()));
-                if let Some(v) = display_name { q = q.bind(v); }
-                if let Some(v) = unit { q = q.bind(v); }
+                if let Some(v) = display_name {
+                    q = q.bind(v);
+                }
+                if let Some(v) = unit {
+                    q = q.bind(v);
+                }
                 q.bind(id).execute(p).await?;
                 Ok(())
             }
             Self::Mssql(db) => {
                 let mut sets: Vec<String> = Vec::new();
                 let mut ph = 1u32;
-                if has_display { sets.push(format!("display_name = @P{}", ph)); ph += 1; }
-                if has_unit { sets.push(format!("unit = @P{}", ph)); ph += 1; }
+                if has_display {
+                    sets.push(format!("display_name = @P{}", ph));
+                    ph += 1;
+                }
+                if has_unit {
+                    sets.push(format!("unit = @P{}", ph));
+                    ph += 1;
+                }
                 let mssql_sql = format!("UPDATE signals SET {} WHERE id = @P{}", sets.join(", "), ph);
                 let display_str: &str = display_name.unwrap_or("");
                 let unit_str: &str = unit.unwrap_or("");
                 let mut params: Vec<&dyn tiberius::ToSql> = Vec::new();
-                if has_display { params.push(&display_str as &dyn tiberius::ToSql); }
-                if has_unit { params.push(&unit_str as &dyn tiberius::ToSql); }
+                if has_display {
+                    params.push(&display_str as &dyn tiberius::ToSql);
+                }
+                if has_unit {
+                    params.push(&unit_str as &dyn tiberius::ToSql);
+                }
                 params.push(&id as &dyn tiberius::ToSql);
                 db.execute(&mssql_sql, &params).await?;
                 Ok(())
@@ -2192,10 +2914,22 @@ impl DbPool {
 
     pub async fn list_machines(&self) -> Result<Vec<Machine>, sqlx::Error> {
         match self {
-            Self::NoDb => { Err(sqlx::Error::Configuration("Database not available".into()))},
-                Self::Sqlite(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines ORDER BY serial_number").fetch_all(p).await,
-            Self::Postgres(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines ORDER BY serial_number").fetch_all(p).await,
-            Self::Mysql(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines ORDER BY serial_number").fetch_all(p).await,
+            Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
+            Self::Sqlite(p) => {
+                sqlx::query_as::<_, Machine>("SELECT * FROM machines ORDER BY serial_number")
+                    .fetch_all(p)
+                    .await
+            }
+            Self::Postgres(p) => {
+                sqlx::query_as::<_, Machine>("SELECT * FROM machines ORDER BY serial_number")
+                    .fetch_all(p)
+                    .await
+            }
+            Self::Mysql(p) => {
+                sqlx::query_as::<_, Machine>("SELECT * FROM machines ORDER BY serial_number")
+                    .fetch_all(p)
+                    .await
+            }
             Self::Mssql(db) => db.query_all::<Machine>("SELECT * FROM machines ORDER BY serial_number", &[]).await,
         }
     }
@@ -2203,25 +2937,52 @@ impl DbPool {
     pub async fn find_machine_by_serial(&self, serial: &str) -> Result<Option<Machine>, sqlx::Error> {
         match self {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
-            Self::Sqlite(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE serial_number = ?")
-                .bind(serial).fetch_optional(p).await,
-            Self::Postgres(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE serial_number = $1")
-                .bind(serial).fetch_optional(p).await,
-            Self::Mysql(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE serial_number = ?")
-                .bind(serial).fetch_optional(p).await,
-            Self::Mssql(db) => db.query_one::<Machine>("SELECT * FROM machines WHERE serial_number = @P1", tp!(serial)).await,
+            Self::Sqlite(p) => {
+                sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE serial_number = ?")
+                    .bind(serial)
+                    .fetch_optional(p)
+                    .await
+            }
+            Self::Postgres(p) => {
+                sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE serial_number = $1")
+                    .bind(serial)
+                    .fetch_optional(p)
+                    .await
+            }
+            Self::Mysql(p) => {
+                sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE serial_number = ?")
+                    .bind(serial)
+                    .fetch_optional(p)
+                    .await
+            }
+            Self::Mssql(db) => {
+                db.query_one::<Machine>("SELECT * FROM machines WHERE serial_number = @P1", tp!(serial))
+                    .await
+            }
         }
     }
 
     pub async fn find_machine_by_id(&self, id: i64) -> Result<Option<Machine>, sqlx::Error> {
         match self {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
-            Self::Sqlite(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE id = ?")
-                .bind(id).fetch_optional(p).await,
-            Self::Postgres(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE id = $1")
-                .bind(id).fetch_optional(p).await,
-            Self::Mysql(p) => sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE id = ?")
-                .bind(id).fetch_optional(p).await,
+            Self::Sqlite(p) => {
+                sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE id = ?")
+                    .bind(id)
+                    .fetch_optional(p)
+                    .await
+            }
+            Self::Postgres(p) => {
+                sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE id = $1")
+                    .bind(id)
+                    .fetch_optional(p)
+                    .await
+            }
+            Self::Mysql(p) => {
+                sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE id = ?")
+                    .bind(id)
+                    .fetch_optional(p)
+                    .await
+            }
             Self::Mssql(db) => db.query_one::<Machine>("SELECT * FROM machines WHERE id = @P1", tp!(id)).await,
         }
     }
@@ -2231,26 +2992,37 @@ impl DbPool {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
             Self::Sqlite(p) => {
                 sqlx::query("INSERT INTO machines (serial_number, software_version) VALUES (?, '')")
-                    .bind(serial).execute(p).await?;
+                    .bind(serial)
+                    .execute(p)
+                    .await?;
                 sqlx::query_as::<_, Machine>("SELECT * FROM machines WHERE serial_number = ?")
-                    .bind(serial).fetch_one(p).await
+                    .bind(serial)
+                    .fetch_one(p)
+                    .await
             }
             Self::Postgres(p) => {
                 sqlx::query_as::<_, Machine>("INSERT INTO machines (serial_number, software_version) VALUES ($1, '') RETURNING *")
-                    .bind(serial).fetch_one(p).await
+                    .bind(serial)
+                    .fetch_one(p)
+                    .await
             }
             Self::Mysql(p) => {
                 sqlx::query("INSERT INTO machines (serial_number, software_version) VALUES (?, '')")
-                    .bind(serial).execute(p).await?;
+                    .bind(serial)
+                    .execute(p)
+                    .await?;
                 let id: (i64,) = sqlx::query_as("SELECT LAST_INSERT_ID()").fetch_one(p).await?;
-                self.find_machine_by_id(id.0).await?.ok_or_else(|| sqlx::Error::Configuration("Created machine not found after insert".into()))
+                self.find_machine_by_id(id.0)
+                    .await?
+                    .ok_or_else(|| sqlx::Error::Configuration("Created machine not found after insert".into()))
             }
-            Self::Mssql(db) => {
-                db.query_one::<Machine>(
+            Self::Mssql(db) => db
+                .query_one::<Machine>(
                     "INSERT INTO machines (serial_number, software_version) OUTPUT INSERTED.* VALUES (@P1, '')",
-                    tp!(serial)
-                ).await?.ok_or_else(|| sqlx::Error::Protocol("INSERT OUTPUT returned no rows".into()))
-            }
+                    tp!(serial),
+                )
+                .await?
+                .ok_or_else(|| sqlx::Error::Protocol("INSERT OUTPUT returned no rows".into())),
         }
     }
 
@@ -2260,7 +3032,9 @@ impl DbPool {
             let pw = crate::auth::hash_password(password)
                 .map_err(|e| sqlx::Error::Configuration(format!("Password hashing failed: {}", e).into()))?;
             match self {
-                Self::NoDb => { return Err(sqlx::Error::Configuration("Database not available".into())); },
+                Self::NoDb => {
+                    return Err(sqlx::Error::Configuration("Database not available".into()));
+                }
                 Self::Sqlite(p) => {
                     sqlx::query("INSERT INTO users (username, password, full_name, email, role, active) VALUES ('admin', ?, 'Administrator', 'admin@monitor.local', 'admin', 1)")
                         .bind(&pw).execute(p).await?;
@@ -2273,7 +3047,7 @@ impl DbPool {
                     sqlx::query("INSERT INTO users (username, password, full_name, email, role, active) VALUES ('admin', ?, 'Administrator', 'admin@monitor.local', 'admin', TRUE)")
                         .bind(&pw).execute(p).await?;
                 }
-            Self::Mssql(db) => {
+                Self::Mssql(db) => {
                     db.execute("INSERT INTO users (username, password, full_name, email, role, active) VALUES ('admin', @P1, 'Administrator', 'admin@monitor.local', 'admin', 1)", tp!(pw)).await?;
                 }
             }
@@ -2287,29 +3061,41 @@ impl DbPool {
             Self::NoDb => Err(sqlx::Error::Configuration("Database not available".into())),
             Self::Sqlite(p) => {
                 sqlx::query("INSERT INTO authorization_codes (code, user_id, expires_at, used) VALUES (?, ?, ?, 0)")
-                    .bind(code).bind(user_id).bind(expires_at).execute(p).await?;
+                    .bind(code)
+                    .bind(user_id)
+                    .bind(expires_at)
+                    .execute(p)
+                    .await?;
                 Ok(())
             }
             Self::Postgres(p) => {
                 sqlx::query("INSERT INTO authorization_codes (code, user_id, expires_at, used) VALUES ($1, $2, $3, FALSE)")
-                    .bind(code).bind(user_id).bind(expires_at).execute(p).await?;
+                    .bind(code)
+                    .bind(user_id)
+                    .bind(expires_at)
+                    .execute(p)
+                    .await?;
                 Ok(())
             }
             Self::Mysql(p) => {
                 sqlx::query("INSERT INTO authorization_codes (code, user_id, expires_at, used) VALUES (?, ?, ?, 0)")
-                    .bind(code).bind(user_id).bind(expires_at).execute(p).await?;
+                    .bind(code)
+                    .bind(user_id)
+                    .bind(expires_at)
+                    .execute(p)
+                    .await?;
                 Ok(())
             }
             Self::Mssql(db) => {
                 db.execute(
                     "INSERT INTO authorization_codes (code, user_id, expires_at, used) VALUES (@P1, @P2, @P3, 0)",
-                    tp!(code, user_id, expires_at)
-                ).await?;
+                    tp!(code, user_id, expires_at),
+                )
+                .await?;
                 Ok(())
             }
         }
     }
-
 }
 
 // Raw structs for JOIN queries
@@ -2339,7 +3125,22 @@ struct TherapyRaw {
 
 impl From<TherapyRaw> for TherapyWithMachine {
     fn from(r: TherapyRaw) -> Self {
-        Self { id: r.id, started_at: r.started_at, ended_at: r.ended_at, status: r.status, machine_id: r.machine_id, serial_number: r.serial_number, software_version: r.software_version, ip_address: r.ip_address, port: r.port, therapy_type: r.therapy_type, kit: r.kit, weight_initial: r.weight_initial, weight_final: r.weight_final, patient_id_str: r.patient_id_str }
+        Self {
+            id: r.id,
+            started_at: r.started_at,
+            ended_at: r.ended_at,
+            status: r.status,
+            machine_id: r.machine_id,
+            serial_number: r.serial_number,
+            software_version: r.software_version,
+            ip_address: r.ip_address,
+            port: r.port,
+            therapy_type: r.therapy_type,
+            kit: r.kit,
+            weight_initial: r.weight_initial,
+            weight_final: r.weight_final,
+            patient_id_str: r.patient_id_str,
+        }
     }
 }
 
@@ -2399,7 +3200,17 @@ struct MachineIpWithSerialRaw {
 
 impl From<MachineIpWithSerialRaw> for MachineIpWithSerial {
     fn from(r: MachineIpWithSerialRaw) -> Self {
-        Self { id: r.id, machine_id: r.machine_id, ip_address: r.ip_address, port: r.port, label: r.label, is_active: r.is_active, created_at: r.created_at, updated_at: r.updated_at, serial_number: r.serial_number }
+        Self {
+            id: r.id,
+            machine_id: r.machine_id,
+            ip_address: r.ip_address,
+            port: r.port,
+            label: r.label,
+            is_active: r.is_active,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+            serial_number: r.serial_number,
+        }
     }
 }
 
@@ -2416,7 +3227,12 @@ impl From<ActiveDeviceRaw> for ActiveDevice {
             Some(p) => format!("http://{}:{}", r.ip_address, p),
             None => format!("http://{}", r.ip_address),
         };
-        Self { url, ip_address: r.ip_address, port: r.port, serial_number: r.serial_number.unwrap_or_default() }
+        Self {
+            url,
+            ip_address: r.ip_address,
+            port: r.port,
+            serial_number: r.serial_number.unwrap_or_default(),
+        }
     }
 }
 

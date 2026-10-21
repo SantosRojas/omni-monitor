@@ -1,13 +1,13 @@
 use axum::{
+    Extension, Json,
     extract::State,
     http::{HeaderMap, HeaderValue, StatusCode},
     response::IntoResponse,
-    Extension, Json,
 };
 
+use super::{AppError, AppState};
 use crate::auth::{self as auth_utils, JwtClaims};
 use crate::models::*;
-use super::{AppError, AppState};
 
 pub async fn generate_authorization_code(
     State(state): State<AppState>,
@@ -20,7 +20,8 @@ pub async fn generate_authorization_code(
     if req.user_id <= 0 {
         return Err(AppError::Validation("Invalid user_id".into()));
     }
-    state.pool
+    state
+        .pool
         .find_user_by_id(claims.user_id)
         .await
         .map_err(|e| AppError::Database(format!("find_user_by_id: {}", e)))?
@@ -28,7 +29,8 @@ pub async fn generate_authorization_code(
 
     let code = uuid::Uuid::new_v4().to_string();
 
-    state.pool
+    state
+        .pool
         .create_authorization_code(&code, req.user_id, req.expires_at)
         .await
         .map_err(|e| AppError::Database(format!("create_authorization_code: {}", e)))?;
@@ -36,11 +38,9 @@ pub async fn generate_authorization_code(
     Ok(Json(GenerateTokenResponse { code }))
 }
 
-pub async fn login(
-    State(state): State<AppState>,
-    Json(req): Json<LoginRequest>,
-) -> Result<impl IntoResponse, AppError> {
-    let user = state.pool
+pub async fn login(State(state): State<AppState>, Json(req): Json<LoginRequest>) -> Result<impl IntoResponse, AppError> {
+    let user = state
+        .pool
         .find_user_by_username(&req.username)
         .await
         .map_err(|e| AppError::Database(format!("find_user_by_username: {}", e)))?
@@ -63,17 +63,20 @@ pub async fn login(
     .map_err(|_| AppError::TokenIssuance)?;
 
     let max_age = state.config.jwt_expiration_hours * 3600;
-    let cookie = format!(
-        "monitor_token={}; HttpOnly; SameSite=Strict; Path=/api; Max-Age={}",
-        token, max_age
-    );
+    let cookie = format!("monitor_token={}; HttpOnly; SameSite=Strict; Path=/api; Max-Age={}", token, max_age);
 
     let mut headers = HeaderMap::new();
-    headers.insert(axum::http::header::SET_COOKIE, HeaderValue::from_str(&cookie).map_err(|e| AppError::Internal(format!("Invalid cookie header: {}", e)))?);
+    headers.insert(
+        axum::http::header::SET_COOKIE,
+        HeaderValue::from_str(&cookie).map_err(|e| AppError::Internal(format!("Invalid cookie header: {}", e)))?,
+    );
 
-    Ok((headers, Json(LoginResponse {
-        user: UserResponse::from(user),
-    })))
+    Ok((
+        headers,
+        Json(LoginResponse {
+            user: UserResponse::from(user),
+        }),
+    ))
 }
 
 pub async fn logout() -> impl IntoResponse {
@@ -85,11 +88,9 @@ pub async fn logout() -> impl IntoResponse {
     (headers, StatusCode::OK)
 }
 
-pub async fn me(
-    State(state): State<AppState>,
-    Extension(claims): Extension<JwtClaims>,
-) -> Result<Json<UserResponse>, AppError> {
-    let user = state.pool
+pub async fn me(State(state): State<AppState>, Extension(claims): Extension<JwtClaims>) -> Result<Json<UserResponse>, AppError> {
+    let user = state
+        .pool
         .find_user_by_id(claims.user_id)
         .await
         .map_err(|e| AppError::Database(format!("find_user_by_id: {}", e)))?

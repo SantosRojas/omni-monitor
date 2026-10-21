@@ -1,11 +1,11 @@
 use axum::{
-    extract::{Path, Query, State},
     Extension, Json,
+    extract::{Path, Query, State},
 };
 
-use crate::models::*;
-use crate::auth::JwtClaims;
 use super::{AppError, AppState};
+use crate::auth::JwtClaims;
+use crate::models::*;
 
 pub async fn patient_dashboard(
     State(state): State<AppState>,
@@ -17,13 +17,9 @@ pub async fn patient_dashboard(
         .signal_ids
         .as_deref()
         .map(|s| s.split(',').filter_map(|n| n.trim().parse().ok()).collect());
-    let dashboard = state.pool
-        .patient_dashboard(
-            id,
-            signal_ids.as_deref(),
-            params.from.as_deref(),
-            params.to.as_deref(),
-        )
+    let dashboard = state
+        .pool
+        .patient_dashboard(id, signal_ids.as_deref(), params.from.as_deref(), params.to.as_deref())
         .await?;
     Ok(Json(dashboard))
 }

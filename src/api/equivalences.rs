@@ -1,12 +1,12 @@
 use axum::{
-    extract::{Path, Query, State},
     Extension, Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 
-use crate::models::*;
-use crate::auth::JwtClaims;
 use super::{AppError, AppState};
+use crate::auth::JwtClaims;
+use crate::models::*;
 
 pub async fn list(
     State(state): State<AppState>,
@@ -28,7 +28,10 @@ pub async fn create(
         return Err(AppError::Forbidden);
     }
     let signal_id = state.pool.get_or_create_signal(&req.internal_name).await?;
-    state.pool.upsert_equivalence(signal_id, req.numeric_value, &req.display_name).await?;
+    state
+        .pool
+        .upsert_equivalence(signal_id, req.numeric_value, &req.display_name)
+        .await?;
     Ok(Json(serde_json::json!({"ok": true, "signal_id": signal_id})))
 }
 
@@ -40,7 +43,10 @@ pub async fn update(
     if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
-    state.pool.update_equivalence(req.signal_id, req.numeric_value, &req.display_name).await?;
+    state
+        .pool
+        .update_equivalence(req.signal_id, req.numeric_value, &req.display_name)
+        .await?;
     Ok(Json(serde_json::json!({"ok": true})))
 }
 
@@ -62,11 +68,9 @@ pub async fn delete(
         return Err(AppError::Validation("Numeric value must be a finite number".into()));
     }
     let reason = params.deletion_reason.unwrap_or_default();
-    state.pool.delete_equivalence_with_log(
-        signal_id,
-        numeric_value,
-        &claims.username,
-        &reason,
-    ).await?;
+    state
+        .pool
+        .delete_equivalence_with_log(signal_id, numeric_value, &claims.username, &reason)
+        .await?;
     Ok(Json(serde_json::json!({"deleted": true})))
 }

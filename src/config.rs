@@ -27,10 +27,7 @@ impl MonitorConfig {
         }
         let cors_origins = {
             let raw = env::var("CORS_ORIGINS").unwrap_or_else(|_| "http://localhost:9002".into());
-            let origins: Vec<String> = raw.split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
+            let origins: Vec<String> = raw.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
             if origins.is_empty() {
                 return Err("No valid CORS origins configured. Set CORS_ORIGINS environment variable.".into());
             }
@@ -42,26 +39,18 @@ impl MonitorConfig {
             db_port: env::var("DB_PORT")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or_else(|| {
-                    match env::var("DB_CONNECTION").as_deref() {
-                        Ok("postgres") | Ok("pgsql") | Ok("postgresql") => 5432,
-                        Ok("mysql") | Ok("mariadb") => 3306,
-                        _ => 1433,
-                    }
+                .unwrap_or_else(|| match env::var("DB_CONNECTION").as_deref() {
+                    Ok("postgres") | Ok("pgsql") | Ok("postgresql") => 5432,
+                    Ok("mysql") | Ok("mariadb") => 3306,
+                    _ => 1433,
                 }),
             db_database: env::var("DB_DATABASE").unwrap_or_else(|_| "database.db".into()),
             db_username: env::var("DB_USERNAME").unwrap_or_else(|_| "root".into()),
             db_password: env::var("DB_PASSWORD").unwrap_or_default(),
             monitor_host: env::var("MONITOR_HOST").unwrap_or_else(|_| "127.0.0.1".into()),
-            monitor_port: env::var("MONITOR_PORT")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(9002),
+            monitor_port: env::var("MONITOR_PORT").ok().and_then(|v| v.parse().ok()).unwrap_or(9002),
             jwt_secret,
-            jwt_expiration_hours: env::var("JWT_EXPIRATION_HOURS")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(24),
+            jwt_expiration_hours: env::var("JWT_EXPIRATION_HOURS").ok().and_then(|v| v.parse().ok()).unwrap_or(24),
             jwt_issuer: env::var("JWT_ISSUER").unwrap_or_else(|_| "monitor".into()),
             admin_password: {
                 let pw = env::var("ADMIN_PASSWORD").unwrap_or_else(|_| "admin123".into());
@@ -71,10 +60,7 @@ impl MonitorConfig {
                 pw
             },
             cors_origins,
-            polling_interval_ms: env::var("POLLING_INTERVAL_MS")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(15000),
+            polling_interval_ms: env::var("POLLING_INTERVAL_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(15000),
         })
     }
 }

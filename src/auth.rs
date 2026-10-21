@@ -1,9 +1,9 @@
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use chrono::Utc;
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 
 use crate::models::User;
@@ -38,12 +38,7 @@ pub fn verify_password(stored: &str, candidate: &str) -> bool {
     Argon2::default().verify_password(candidate.as_bytes(), &parsed).is_ok()
 }
 
-pub fn issue_token(
-    user: &User,
-    secret: &str,
-    expiration_hours: u64,
-    issuer: &str,
-) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn issue_token(user: &User, secret: &str, expiration_hours: u64, issuer: &str) -> Result<String, jsonwebtoken::errors::Error> {
     let now = Utc::now().timestamp() as u64;
     let claims = JwtClaims {
         user_id: user.id,
@@ -55,25 +50,13 @@ pub fn issue_token(
         exp: now + (expiration_hours * 3600),
         iss: issuer.to_string(),
     };
-    encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(secret.as_bytes()),
-    )
+    encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_bytes()))
 }
 
-pub fn decode_token(
-    token: &str,
-    secret: &str,
-    issuer: &str,
-) -> Result<JwtClaims, jsonwebtoken::errors::Error> {
+pub fn decode_token(token: &str, secret: &str, issuer: &str) -> Result<JwtClaims, jsonwebtoken::errors::Error> {
     let mut validation = Validation::default();
     validation.set_issuer(&[issuer]);
     validation.validate_exp = true;
-    let token_data = decode::<JwtClaims>(
-        token,
-        &DecodingKey::from_secret(secret.as_bytes()),
-        &validation,
-    )?;
+    let token_data = decode::<JwtClaims>(token, &DecodingKey::from_secret(secret.as_bytes()), &validation)?;
     Ok(token_data.claims)
 }

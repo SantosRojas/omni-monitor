@@ -9,16 +9,16 @@ pub mod patients;
 pub mod signals;
 pub mod users;
 
+use crate::config::MonitorConfig;
+use crate::database::DbPool;
 use axum::{
+    Json, Router,
     extract::{Request, State},
     http::StatusCode,
     middleware,
     response::{IntoResponse, Response},
     routing::{delete, get, post, put},
-    Json, Router,
 };
-use crate::config::MonitorConfig;
-use crate::database::DbPool;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -72,7 +72,11 @@ impl From<sqlx::Error> for AppError {
 }
 
 fn extract_token_from_cookies(cookie_header: &str) -> Option<&str> {
-    cookie_header.split(';').filter_map(|c| c.trim().split_once('=')).find(|(k, _)| k.trim() == "monitor_token").map(|(_, v)| v)
+    cookie_header
+        .split(';')
+        .filter_map(|c| c.trim().split_once('='))
+        .find(|(k, _)| k.trim() == "monitor_token")
+        .map(|(_, v)| v)
 }
 
 pub async fn auth_middleware(
@@ -90,9 +94,16 @@ pub async fn auth_middleware(
     let claims = crate::auth::decode_token(token, &state.config.jwt_secret, &state.config.jwt_issuer)
         .map_err(|_| (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Invalid token"}))))?;
 
-    let user = state.pool.find_user_by_id(claims.user_id)
+    let user = state
+        .pool
+        .find_user_by_id(claims.user_id)
         .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal error"}))))?
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Internal error"})),
+            )
+        })?
         .ok_or((StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "User not found"}))))?;
 
     if !user.active {
@@ -123,12 +134,18 @@ pub fn create_router(state: AppState) -> Router {
         .route("/therapies/{id}", get(patients::get_therapy))
         .route("/therapies/{id}/dashboard", get(dashboard::therapy_dashboard))
         .route("/therapies/{id}/export", get(export::export_therapy))
-        .route("/therapies/{id}/comments", get(comments::list_comments).post(comments::create_comment))
+        .route(
+            "/therapies/{id}/comments",
+            get(comments::list_comments).post(comments::create_comment),
+        )
         .route("/therapies/{therapy_id}/comments/{comment_id}", delete(comments::delete_comment))
         .route("/machines", get(machine_ips::list_machines))
         .route("/admin/machine-ips", get(machine_ips::list).post(machine_ips::create))
         .route("/admin/machine-ips/{id}", put(machine_ips::update).delete(machine_ips::delete_ip))
-        .route("/admin/equivalences", get(equivalences::list).post(equivalences::create).put(equivalences::update))
+        .route(
+            "/admin/equivalences",
+            get(equivalences::list).post(equivalences::create).put(equivalences::update),
+        )
         .route("/admin/equivalences/{signal_id}/{numeric_value}", delete(equivalences::delete))
         .route("/admin/signals", get(signals::list))
         .route("/admin/signals/{id}", put(signals::update))
@@ -138,7 +155,5 @@ pub fn create_router(state: AppState) -> Router {
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state);
 
-    Router::new()
-        .merge(public)
-        .merge(protected)
+    Router::new().merge(public).merge(protected)
 }

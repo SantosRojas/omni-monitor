@@ -1,12 +1,12 @@
 use axum::{
-    extract::{Path, State},
     Extension, Json,
+    extract::{Path, State},
 };
 use serde::Deserialize;
 
+use super::{AppError, AppState};
 use crate::auth::JwtClaims;
 use crate::models::TherapyComment;
-use super::{AppError, AppState};
 
 #[derive(Deserialize)]
 pub struct CreateCommentRequest {
@@ -39,7 +39,10 @@ pub async fn create_comment(
     if body.comment.trim().is_empty() {
         return Err(AppError::Validation("Comment cannot be empty".into()));
     }
-    let comment = state.pool.create_therapy_comment(therapy_id, &claims.full_name, &body.comment).await?;
+    let comment = state
+        .pool
+        .create_therapy_comment(therapy_id, &claims.full_name, &body.comment)
+        .await?;
     Ok(Json(comment))
 }
 

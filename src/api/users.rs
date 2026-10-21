@@ -1,16 +1,13 @@
 use axum::{
-    extract::{Path, State},
     Extension, Json,
+    extract::{Path, State},
 };
 
-use crate::models::*;
-use crate::auth::JwtClaims;
 use super::{AppError, AppState};
+use crate::auth::JwtClaims;
+use crate::models::*;
 
-pub async fn list(
-    State(state): State<AppState>,
-    Extension(claims): Extension<JwtClaims>,
-) -> Result<Json<Vec<UserResponse>>, AppError> {
+pub async fn list(State(state): State<AppState>, Extension(claims): Extension<JwtClaims>) -> Result<Json<Vec<UserResponse>>, AppError> {
     if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
@@ -55,10 +52,7 @@ pub async fn update(
     if claims.role.to_lowercase() != "admin" {
         return Err(AppError::Forbidden);
     }
-    let user = state.pool
-        .update_user(id, &req)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let user = state.pool.update_user(id, &req).await?.ok_or(AppError::NotFound)?;
     Ok(Json(UserResponse::from(user)))
 }
 

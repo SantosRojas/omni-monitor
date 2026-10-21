@@ -96,10 +96,7 @@ async fn main() {
         }
     };
 
-    if let Err(e) = axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-    {
+    if let Err(e) = axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await {
         tracing::error!("Server failed: {}", e);
         std::process::exit(1);
     }
